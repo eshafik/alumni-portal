@@ -1,11 +1,14 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { Compass, Target, CalendarDays, MapPin } from 'lucide-react'
 import { eventsApi, noticesApi, galleryApi } from '../../api/content'
 import { api } from '../../api/client'
 import { useInstitution } from '../../hooks/useInstitution'
 import type { Event, Notice, GalleryImage } from '../../types/api'
 import { Button, Card, Badge, Loading } from '../../components/shared/ui'
 import { ImageSlider } from '../../components/shared/ImageSlider'
+
+const DEFAULT_TAGLINE = 'Connect. Remember. Grow Together.'
 
 interface CommitteeMember {
   userId: number
@@ -49,61 +52,91 @@ export default function Home() {
     <div className="space-y-16">
       {/* Hero */}
       <section className="text-center pt-4">
-        {gallery.length > 0 && (
+        {gallery.length > 0 ? (
           <div className="mb-8">
             <ImageSlider images={gallery} />
           </div>
+        ) : (
+          <div className="mb-8 -mx-4 sm:mx-0 sm:rounded-2xl bg-gradient-to-br from-brand via-brand to-indigo-800 py-16 px-6 text-white">
+            <h1 className="text-3xl md:text-5xl font-bold mb-4">{institution?.tagline || DEFAULT_TAGLINE}</h1>
+            <p className="text-white/80 max-w-xl mx-auto mb-8">
+              {institution?.description ||
+                `The digital home for ${institution?.name ?? 'our'} alumni community — find classmates, discover opportunities, and stay connected.`}
+            </p>
+            <div className="flex flex-wrap justify-center gap-3">
+              <Link to="/signup">
+                <Button className="px-6 py-3 text-base bg-white text-brand hover:bg-white/90">Join Alumni Community</Button>
+              </Link>
+              <Link to="/directory">
+                <Button variant="secondary" className="px-6 py-3 text-base bg-white/10 text-white border border-white/30 hover:bg-white/20">
+                  Explore Alumni
+                </Button>
+              </Link>
+            </div>
+          </div>
         )}
-        <h1 className="text-3xl md:text-5xl font-bold text-slate-900 mb-4">
-          Connect. Remember. Grow Together.
-        </h1>
-        <p className="text-slate-600 max-w-xl mx-auto mb-8">
-          {institution?.description ||
-            `The digital home for ${institution?.name ?? 'our'} alumni community — find classmates, discover opportunities, and stay connected.`}
-        </p>
-        <div className="flex flex-wrap justify-center gap-3">
-          <Link to="/signup">
-            <Button className="px-6 py-3 text-base">Join Alumni Community</Button>
-          </Link>
-          <Link to="/directory">
-            <Button variant="secondary" className="px-6 py-3 text-base">
-              Explore Alumni
-            </Button>
-          </Link>
-        </div>
+        {gallery.length > 0 && (
+          <>
+            <h1 className="text-3xl md:text-5xl font-bold text-slate-900 mb-4">{institution?.tagline || DEFAULT_TAGLINE}</h1>
+            <p className="text-slate-600 max-w-xl mx-auto mb-8">
+              {institution?.description ||
+                `The digital home for ${institution?.name ?? 'our'} alumni community — find classmates, discover opportunities, and stay connected.`}
+            </p>
+            <div className="flex flex-wrap justify-center gap-3">
+              <Link to="/signup">
+                <Button className="px-6 py-3 text-base">Join Alumni Community</Button>
+              </Link>
+              <Link to="/directory">
+                <Button variant="secondary" className="px-6 py-3 text-base">
+                  Explore Alumni
+                </Button>
+              </Link>
+            </div>
+          </>
+        )}
       </section>
 
       {/* Stats */}
       {(stats.alumniCount ?? 0) > 0 && (
-        <section className="grid grid-cols-3 gap-4 text-center">
-          <Card>
-            <p className="text-2xl font-bold text-brand">{stats.alumniCount}</p>
-            <p className="text-sm text-slate-500">Alumni</p>
+        <section className="grid grid-cols-2 gap-4 text-center">
+          <Card className="py-6">
+            <p className="text-3xl font-bold text-brand">{stats.alumniCount}</p>
+            <p className="text-sm text-slate-500 mt-1">Alumni</p>
           </Card>
-          <Card>
-            <p className="text-2xl font-bold text-brand">{stats.batchCount}</p>
-            <p className="text-sm text-slate-500">Batches</p>
-          </Card>
-          <Card>
-            <p className="text-2xl font-bold text-brand">{stats.locationCount}</p>
-            <p className="text-sm text-slate-500">Locations</p>
+          <Card className="py-6">
+            <p className="text-3xl font-bold text-brand">{stats.batchCount}</p>
+            <p className="text-sm text-slate-500 mt-1">Batches</p>
           </Card>
         </section>
       )}
 
-      {/* About */}
-      {institution?.aboutText && (
-        <section id="about">
-          <h2 className="text-xl font-semibold mb-3">About Us</h2>
-          <p className="text-slate-700 whitespace-pre-wrap max-w-3xl">{institution.aboutText}</p>
-        </section>
-      )}
-
-      {/* Mission */}
-      {institution?.missionText && (
-        <section id="mission">
-          <h2 className="text-xl font-semibold mb-3">Our Mission</h2>
-          <p className="text-slate-700 whitespace-pre-wrap max-w-3xl">{institution.missionText}</p>
+      {/* About + Mission */}
+      {(institution?.aboutText || institution?.missionText) && (
+        <section className="rounded-2xl bg-slate-50 border border-slate-100 p-6 sm:p-10">
+          <div className="grid sm:grid-cols-2 gap-8">
+            {institution?.aboutText && (
+              <div>
+                <div className="flex items-center gap-2.5 mb-3">
+                  <span className="flex items-center justify-center w-9 h-9 rounded-lg bg-brand/10 text-brand shrink-0">
+                    <Compass size={18} />
+                  </span>
+                  <h2 className="text-lg font-semibold text-slate-900">About Us</h2>
+                </div>
+                <p className="text-slate-600 whitespace-pre-wrap leading-relaxed">{institution.aboutText}</p>
+              </div>
+            )}
+            {institution?.missionText && (
+              <div>
+                <div className="flex items-center gap-2.5 mb-3">
+                  <span className="flex items-center justify-center w-9 h-9 rounded-lg bg-brand/10 text-brand shrink-0">
+                    <Target size={18} />
+                  </span>
+                  <h2 className="text-lg font-semibold text-slate-900">Our Mission</h2>
+                </div>
+                <p className="text-slate-600 whitespace-pre-wrap leading-relaxed">{institution.missionText}</p>
+              </div>
+            )}
+          </div>
         </section>
       )}
 
@@ -141,10 +174,18 @@ export default function Home() {
           <div className="grid md:grid-cols-3 gap-4">
             {events.map((e) => (
               <Link key={e.id} to={`/events/${e.slug}`}>
-                <Card>
-                  <p className="font-medium">{e.title}</p>
-                  <p className="text-sm text-slate-500 mt-1">{new Date(e.startAt).toLocaleDateString()}</p>
-                  <p className="text-sm text-slate-500">{e.venue}</p>
+                <Card className="hover:shadow-md hover:border-brand/30 transition-all h-full">
+                  <p className="font-medium text-slate-900">{e.title}</p>
+                  <div className="mt-2 space-y-1 text-sm text-slate-500">
+                    <p className="flex items-center gap-1.5">
+                      <CalendarDays size={13} /> {new Date(e.startAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                    </p>
+                    {e.venue && (
+                      <p className="flex items-center gap-1.5">
+                        <MapPin size={13} /> {e.venue}
+                      </p>
+                    )}
+                  </div>
                 </Card>
               </Link>
             ))}

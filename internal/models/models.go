@@ -24,6 +24,7 @@ type Institution struct {
 	Slug                string `db:"slug" json:"slug"`
 	InstitutionType     string `db:"institution_type" json:"institutionType"`
 	Description         string `db:"description" json:"description"`
+	Tagline             string `db:"tagline" json:"tagline"`
 	Address             string `db:"address" json:"address"`
 	Website             string `db:"website" json:"website"`
 	ContactEmail        string `db:"contact_email" json:"contactEmail"`
@@ -236,6 +237,9 @@ type Event struct {
 	RegistrationDeadline *string `db:"registration_deadline" json:"registrationDeadline,omitempty"`
 	Capacity             *int    `db:"capacity" json:"capacity,omitempty"`
 	Status               string  `db:"status" json:"status"`
+	IsPublic             bool    `db:"is_public" json:"isPublic"`
+	RegistrationURL      *string `db:"registration_url" json:"registrationUrl,omitempty"`
+	ResponseURL          *string `db:"response_url" json:"-"`
 	CreatedByUserID      int64   `db:"created_by_user_id" json:"createdByUserId"`
 	CreatedAt            string  `db:"created_at" json:"createdAt"`
 	UpdatedAt            string  `db:"updated_at" json:"updatedAt"`

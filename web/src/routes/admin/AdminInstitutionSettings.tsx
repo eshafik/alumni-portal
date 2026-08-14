@@ -28,6 +28,7 @@ export default function AdminInstitutionSettings() {
     shortName: '',
     institutionType: 'university',
     description: '',
+    tagline: '',
     aboutText: '',
     missionText: '',
     address: '',
@@ -54,6 +55,7 @@ export default function AdminInstitutionSettings() {
         shortName: institution.shortName,
         institutionType: institution.institutionType,
         description: institution.description,
+        tagline: institution.tagline,
         aboutText: institution.aboutText,
         missionText: institution.missionText,
         address: institution.address,
@@ -189,6 +191,9 @@ export default function AdminInstitutionSettings() {
         <Card>
           <SectionHeader title="Homepage Content" description="Displayed on the public homepage." />
           <div className="space-y-4">
+            <Field label="Hero tagline" hint="The big headline on the homepage, e.g. 'Connect. Remember. Grow Together.'">
+              <Input value={form.tagline} onChange={set('tagline')} />
+            </Field>
             <Field label="Hero subtitle" hint="A one-line summary shown under the headline.">
               <Textarea rows={2} value={form.description} onChange={set('description')} />
             </Field>

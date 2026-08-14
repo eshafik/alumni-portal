@@ -23,7 +23,7 @@ export const adminCommitteesApi = {
 }
 
 export const eventsApi = {
-  list: (page = 1) => api.get<PagedResult<Event>>(`/api/events?page=${page}`),
+  list: (page = 1, q = '') => api.get<PagedResult<Event>>(`/api/events?page=${page}&q=${encodeURIComponent(q)}`),
   get: (slug: string) => api.get<{ event: Event; registeredCount: number }>(`/api/events/${slug}`),
   register: (slug: string) => api.post<{ status: string }>(`/api/events/${slug}/register`),
   cancelRegistration: (slug: string) => api.delete(`/api/events/${slug}/register`),
@@ -39,12 +39,30 @@ export interface UpsertEventPayload {
   onlineUrl: string
   registrationDeadline: string | null
   capacity: number | null
+  isPublic: boolean
+  registrationUrl: string | null
+  responseUrl: string | null
+}
+
+export interface AdminEventDetail extends Event {
+  responseUrl?: string
+}
+
+export interface EventRegistrationRow {
+  userId: number
+  fullName: string
+  email: string
+  status: 'registered' | 'waitlisted' | 'cancelled'
+  registeredAt: string
 }
 
 export const adminEventsApi = {
   create: (payload: UpsertEventPayload) => api.post<Event>('/api/admin/events', payload),
   update: (id: number, payload: UpsertEventPayload) => api.put<{ message: string }>(`/api/admin/events/${id}`, payload),
   delete: (id: number) => api.delete(`/api/admin/events/${id}`),
+  getById: (id: number) => api.get<AdminEventDetail>(`/api/admin/events/${id}`),
+  listRegistrations: (id: number) => api.get<EventRegistrationRow[]>(`/api/admin/events/${id}/registrations`),
+  registrationsCsvUrl: (id: number) => `/api/admin/events/${id}/registrations.csv`,
 }
 
 export const noticesApi = {

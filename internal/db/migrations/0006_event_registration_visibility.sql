@@ -1,0 +1,3 @@
+ALTER TABLE events ADD COLUMN is_public INTEGER NOT NULL DEFAULT 1;
+ALTER TABLE events ADD COLUMN registration_url TEXT;
+ALTER TABLE events ADD COLUMN response_url TEXT;

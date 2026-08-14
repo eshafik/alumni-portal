@@ -113,8 +113,8 @@ func main() {
 	r.Get("/api/jobs", jobHandler.List)
 	r.Get("/api/jobs/{id}", jobHandler.Get)
 	r.With(auth.OptionalAuth(dbx)).Get("/api/notices", noticeHandler.List)
-	r.Get("/api/events", eventHandler.List)
-	r.Get("/api/events/{slug}", eventHandler.Get)
+	r.With(auth.OptionalAuth(dbx)).Get("/api/events", eventHandler.List)
+	r.With(auth.OptionalAuth(dbx)).Get("/api/events/{slug}", eventHandler.Get)
 	r.Get("/api/businesses", businessHandler.List)
 	r.Get("/api/businesses/{id}", businessHandler.Get)
 	r.Get("/api/committees", committeeHandler.List)
@@ -190,6 +190,7 @@ func main() {
 		r.Post("/api/notices", noticeHandler.Create)
 		r.Delete("/api/notices/{id}", noticeHandler.Delete)
 
+		r.Get("/api/admin/events/{id}", eventHandler.GetAdmin)
 		r.Post("/api/admin/events", eventHandler.Create)
 		r.Put("/api/admin/events/{id}", eventHandler.Update)
 		r.Delete("/api/admin/events/{id}", eventHandler.Delete)

@@ -23,28 +23,91 @@ type EventHandler struct {
 	PublicBaseURL string
 }
 
+type eventResponse struct {
+	models.Event
+	CoverURL string `json:"coverUrl,omitempty"`
+}
+
+func (h *EventHandler) withCoverURL(event models.Event) eventResponse {
+	return eventResponse{Event: event, CoverURL: attachmentURL(h.DB, h.Storage, event.CoverAttachmentID)}
+}
+
+// List is reachable without login (OptionalAuth, see cmd/server/main.go) — anonymous callers
+// and non-approved accounts only ever see is_public events, same visibility pattern as notices
+// (NoticeHandler.List). Sorted newest-created-first so a just-created event is always on page 1.
 func (h *EventHandler) List(w http.ResponseWriter, r *http.Request) {
 	pg := httpx.ParsePagination(r)
+	u := auth.CurrentUser(r)
+	publicOnly := u == nil || u.Status != models.StatusApproved
+	q := strings.TrimSpace(r.URL.Query().Get("q"))
+
+	where := "WHERE status = 'published'"
+	args := []any{}
+	if publicOnly {
+		where += " AND is_public = 1"
+	}
+	if q != "" {
+		where += " AND (title LIKE ? OR description LIKE ? OR venue LIKE ?)"
+		like := "%" + q + "%"
+		args = append(args, like, like, like)
+	}
+
 	var total int
-	_ = h.DB.Get(&total, `SELECT COUNT(*) FROM events WHERE status = 'published'`)
+	_ = h.DB.Get(&total, "SELECT COUNT(*) FROM events "+where, args...)
+
 	events := []models.Event{}
-	if err := h.DB.Select(&events, `SELECT * FROM events WHERE status = 'published' ORDER BY start_at LIMIT ? OFFSET ?`, pg.PageSize, pg.Offset); err != nil {
+	listArgs := append(append([]any{}, args...), pg.PageSize, pg.Offset)
+	if err := h.DB.Select(&events, "SELECT * FROM events "+where+" ORDER BY created_at DESC LIMIT ? OFFSET ?", listArgs...); err != nil {
 		httpx.Error(w, http.StatusInternalServerError, "list failed")
 		return
 	}
-	httpx.JSON(w, http.StatusOK, httpx.PagedResult{Items: events, Page: pg.Page, PageSize: pg.PageSize, Total: total})
+	items := make([]eventResponse, len(events))
+	for i, e := range events {
+		items[i] = h.withCoverURL(e)
+	}
+	httpx.JSON(w, http.StatusOK, httpx.PagedResult{Items: items, Page: pg.Page, PageSize: pg.PageSize, Total: total})
 }
 
 func (h *EventHandler) Get(w http.ResponseWriter, r *http.Request) {
 	slug := chi.URLParam(r, "slug")
+	u := auth.CurrentUser(r)
+	publicOnly := u == nil || u.Status != models.StatusApproved
+
 	var event models.Event
 	if err := h.DB.Get(&event, `SELECT * FROM events WHERE slug = ?`, slug); err != nil {
 		httpx.Error(w, http.StatusNotFound, "event not found")
 		return
 	}
+	if publicOnly && !event.IsPublic {
+		httpx.Error(w, http.StatusNotFound, "event not found")
+		return
+	}
 	var registeredCount int
 	_ = h.DB.Get(&registeredCount, `SELECT COUNT(*) FROM event_registrations WHERE event_id = ? AND status = 'registered'`, event.ID)
-	httpx.JSON(w, http.StatusOK, map[string]any{"event": event, "registeredCount": registeredCount})
+	httpx.JSON(w, http.StatusOK, map[string]any{"event": h.withCoverURL(event), "registeredCount": registeredCount})
+}
+
+// GetAdmin returns the full event row including response_url (models.Event's json tag hides it
+// from every other endpoint) — used by AdminEvents.tsx to populate the edit form.
+func (h *EventHandler) GetAdmin(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	if err != nil {
+		httpx.Error(w, http.StatusBadRequest, "invalid id")
+		return
+	}
+	var event models.Event
+	if err := h.DB.Get(&event, `SELECT * FROM events WHERE id = ?`, id); err != nil {
+		httpx.Error(w, http.StatusNotFound, "event not found")
+		return
+	}
+	httpx.JSON(w, http.StatusOK, map[string]any{
+		"id": event.ID, "slug": event.Slug, "title": event.Title, "description": event.Description,
+		"coverAttachmentId": event.CoverAttachmentID, "coverUrl": attachmentURL(h.DB, h.Storage, event.CoverAttachmentID),
+		"startAt": event.StartAt, "endAt": event.EndAt,
+		"venue": event.Venue, "onlineUrl": event.OnlineURL, "registrationDeadline": event.RegistrationDeadline,
+		"capacity": event.Capacity, "status": event.Status, "isPublic": event.IsPublic,
+		"registrationUrl": event.RegistrationURL, "responseUrl": event.ResponseURL,
+	})
 }
 
 var slugSanitizer = regexp.MustCompile(`[^a-z0-9]+`)
@@ -64,6 +127,9 @@ type upsertEventRequest struct {
 	OnlineURL            string  `json:"onlineUrl"`
 	RegistrationDeadline *string `json:"registrationDeadline"`
 	Capacity             *int    `json:"capacity"`
+	IsPublic             *bool   `json:"isPublic"`
+	RegistrationURL      *string `json:"registrationUrl"`
+	ResponseURL          *string `json:"responseUrl"`
 }
 
 func (h *EventHandler) Create(w http.ResponseWriter, r *http.Request) {
@@ -87,11 +153,18 @@ func (h *EventHandler) Create(w http.ResponseWriter, r *http.Request) {
 		slug = base + "-" + strconv.Itoa(i)
 	}
 
+	isPublic := true
+	if req.IsPublic != nil {
+		isPublic = *req.IsPublic
+	}
+	registrationURL := normalizeOptionalURL(req.RegistrationURL)
+	responseURL := normalizeOptionalURL(req.ResponseURL)
+
 	res, err := h.DB.Exec(`INSERT INTO events
-		(institution_id, slug, title, description, cover_attachment_id, start_at, end_at, venue, online_url, registration_deadline, capacity, created_by_user_id)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		(institution_id, slug, title, description, cover_attachment_id, start_at, end_at, venue, online_url, registration_deadline, capacity, is_public, registration_url, response_url, created_by_user_id)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		u.InstitutionID, slug, req.Title, req.Description, req.CoverAttachmentID, req.StartAt, req.EndAt,
-		req.Venue, req.OnlineURL, req.RegistrationDeadline, req.Capacity, u.ID,
+		req.Venue, req.OnlineURL, req.RegistrationDeadline, req.Capacity, isPublic, registrationURL, responseURL, u.ID,
 	)
 	if err != nil {
 		httpx.Error(w, http.StatusInternalServerError, "create failed")
@@ -114,17 +187,39 @@ func (h *EventHandler) Update(w http.ResponseWriter, r *http.Request) {
 		httpx.Error(w, http.StatusBadRequest, "title and startAt are required")
 		return
 	}
+	isPublic := true
+	if req.IsPublic != nil {
+		isPublic = *req.IsPublic
+	}
+	registrationURL := normalizeOptionalURL(req.RegistrationURL)
+	responseURL := normalizeOptionalURL(req.ResponseURL)
+
 	_, err = h.DB.Exec(`UPDATE events SET title = ?, description = ?, cover_attachment_id = ?, start_at = ?,
-		end_at = ?, venue = ?, online_url = ?, registration_deadline = ?, capacity = ?, updated_at = datetime('now')
+		end_at = ?, venue = ?, online_url = ?, registration_deadline = ?, capacity = ?, is_public = ?,
+		registration_url = ?, response_url = ?, updated_at = datetime('now')
 		WHERE id = ?`,
 		req.Title, req.Description, req.CoverAttachmentID, req.StartAt, req.EndAt,
-		req.Venue, req.OnlineURL, req.RegistrationDeadline, req.Capacity, id,
+		req.Venue, req.OnlineURL, req.RegistrationDeadline, req.Capacity, isPublic,
+		registrationURL, responseURL, id,
 	)
 	if err != nil {
 		httpx.Error(w, http.StatusInternalServerError, "update failed")
 		return
 	}
 	httpx.JSON(w, http.StatusOK, map[string]string{"message": "event updated"})
+}
+
+// normalizeOptionalURL treats an empty/whitespace-only string the same as "not set" so clearing
+// a field in the edit form actually clears it in the database rather than storing "".
+func normalizeOptionalURL(v *string) *string {
+	if v == nil {
+		return nil
+	}
+	trimmed := strings.TrimSpace(*v)
+	if trimmed == "" {
+		return nil
+	}
+	return &trimmed
 }
 
 func (h *EventHandler) Delete(w http.ResponseWriter, r *http.Request) {
@@ -279,7 +374,7 @@ type shareData struct {
 func (h *EventHandler) ShareMeta(w http.ResponseWriter, r *http.Request) {
 	slug := chi.URLParam(r, "slug")
 	var event models.Event
-	if err := h.DB.Get(&event, `SELECT * FROM events WHERE slug = ? AND status = 'published'`, slug); err != nil {
+	if err := h.DB.Get(&event, `SELECT * FROM events WHERE slug = ? AND status = 'published' AND is_public = 1`, slug); err != nil {
 		http.NotFound(w, r)
 		return
 	}

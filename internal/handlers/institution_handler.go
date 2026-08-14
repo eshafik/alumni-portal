@@ -30,17 +30,15 @@ func (h *InstitutionHandler) GetInstitution(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	var alumniCount, batchCount, locationCount int
+	var alumniCount, batchCount int
 	_ = h.DB.Get(&alumniCount, `SELECT COUNT(*) FROM users WHERE role_id = ? AND status = ?`, models.RoleAlumni, models.StatusApproved)
 	_ = h.DB.Get(&batchCount, `SELECT COUNT(DISTINCT batch_id) FROM alumni_profiles`)
-	_ = h.DB.Get(&locationCount, `SELECT COUNT(DISTINCT current_location) FROM alumni_profiles WHERE current_location != ''`)
 
 	httpx.JSON(w, http.StatusOK, map[string]any{
 		"institution": institutionResponse{Institution: inst, LogoURL: attachmentURL(h.DB, h.Storage, inst.LogoAttachmentID)},
 		"stats": map[string]int{
-			"alumniCount":   alumniCount,
-			"batchCount":    batchCount,
-			"locationCount": locationCount,
+			"alumniCount": alumniCount,
+			"batchCount":  batchCount,
 		},
 	})
 }
@@ -50,6 +48,7 @@ type updateInstitutionRequest struct {
 	ShortName        string `json:"shortName"`
 	InstitutionType  string `json:"institutionType"`
 	Description      string `json:"description"`
+	Tagline          string `json:"tagline"`
 	Address          string `json:"address"`
 	Website          string `json:"website"`
 	ContactEmail     string `json:"contactEmail"`
@@ -67,10 +66,10 @@ func (h *InstitutionHandler) UpdateInstitution(w http.ResponseWriter, r *http.Re
 		return
 	}
 	_, err := h.DB.Exec(`UPDATE institutions SET
-		name = ?, short_name = ?, institution_type = ?, description = ?, address = ?,
+		name = ?, short_name = ?, institution_type = ?, description = ?, tagline = ?, address = ?,
 		website = ?, contact_email = ?, about_text = ?, mission_text = ?, theme_color = ?,
 		social_links = ?, logo_attachment_id = ?, updated_at = datetime('now')`,
-		req.Name, req.ShortName, req.InstitutionType, req.Description, req.Address,
+		req.Name, req.ShortName, req.InstitutionType, req.Description, req.Tagline, req.Address,
 		req.Website, req.ContactEmail, req.AboutText, req.MissionText, req.ThemeColor,
 		req.SocialLinks, req.LogoAttachmentID,
 	)

@@ -29,6 +29,7 @@ export interface Institution {
   slug: string
   institutionType: string
   description: string
+  tagline: string
   address: string
   website: string
   contactEmail: string
@@ -107,6 +108,7 @@ export interface Event {
   title: string
   description: string
   coverAttachmentId?: number
+  coverUrl?: string
   startAt: string
   endAt?: string
   venue: string
@@ -114,6 +116,9 @@ export interface Event {
   registrationDeadline?: string
   capacity?: number
   status: string
+  isPublic: boolean
+  registrationUrl?: string
+  responseUrl?: string
 }
 
 export interface Notice {
