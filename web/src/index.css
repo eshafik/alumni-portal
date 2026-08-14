@@ -1,0 +1,19 @@
+@import "tailwindcss";
+
+@theme {
+  --color-brand: #1e3a8a;
+  --color-brand-dark: #1e2f6b;
+}
+
+:root {
+  /* Resolves to 0px on non-notched devices/browsers; requires viewport-fit=cover (index.html)
+     to resolve to the real inset on notched/rounded-corner devices. Used by the mobile app
+     chrome (top bar, bottom tab bar) so they pad against the notch/home-indicator instead of
+     sitting under it. */
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
