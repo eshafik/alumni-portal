@@ -3,6 +3,7 @@ package handlers
 import (
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/jmoiron/sqlx"
@@ -32,7 +33,14 @@ func (h *JobHandler) withImageURL(job models.JobPost) jobPostResponse {
 		FullName           string `db:"full_name"`
 		AvatarAttachmentID *int64 `db:"avatar_attachment_id"`
 	}
-	if err := h.DB.Get(&poster, `SELECT full_name, avatar_attachment_id FROM users WHERE id = ?`, job.PostedByUserID); err == nil {
+	// avatar_attachment_id lives on alumni_profiles/student_profiles, not users — same
+	// COALESCE-across-both-profile-tables pattern as CommitteeHandler.respondWithPositions.
+	err := h.DB.Get(&poster, `SELECT u.full_name, COALESCE(ap.avatar_attachment_id, sp.avatar_attachment_id) AS avatar_attachment_id
+		FROM users u
+		LEFT JOIN alumni_profiles ap ON ap.user_id = u.id
+		LEFT JOIN student_profiles sp ON sp.user_id = u.id
+		WHERE u.id = ?`, job.PostedByUserID)
+	if err == nil {
 		resp.PostedByName = poster.FullName
 		resp.PostedByAvatarURL = attachmentURL(h.DB, h.Storage, poster.AvatarAttachmentID)
 	}
@@ -41,10 +49,21 @@ func (h *JobHandler) withImageURL(job models.JobPost) jobPostResponse {
 
 func (h *JobHandler) List(w http.ResponseWriter, r *http.Request) {
 	pg := httpx.ParsePagination(r)
+	q := strings.TrimSpace(r.URL.Query().Get("q"))
+
+	where := "WHERE status = 'published'"
+	args := []any{}
+	if q != "" {
+		where += " AND (title LIKE ? OR company_name LIKE ? OR location LIKE ?)"
+		like := "%" + q + "%"
+		args = append(args, like, like, like)
+	}
+
 	var total int
-	_ = h.DB.Get(&total, `SELECT COUNT(*) FROM job_posts WHERE status = 'published'`)
+	_ = h.DB.Get(&total, "SELECT COUNT(*) FROM job_posts "+where, args...)
 	var jobs []models.JobPost
-	if err := h.DB.Select(&jobs, `SELECT * FROM job_posts WHERE status = 'published' ORDER BY created_at DESC LIMIT ? OFFSET ?`, pg.PageSize, pg.Offset); err != nil {
+	listArgs := append(append([]any{}, args...), pg.PageSize, pg.Offset)
+	if err := h.DB.Select(&jobs, "SELECT * FROM job_posts "+where+" ORDER BY created_at DESC LIMIT ? OFFSET ?", listArgs...); err != nil {
 		httpx.Error(w, http.StatusInternalServerError, "list failed")
 		return
 	}

@@ -100,6 +100,7 @@ export interface StudentDirectoryRow {
   batchLabel: string
   programName: string
   departmentName: string
+  bloodGroupName: string
 }
 
 export interface Event {

@@ -97,6 +97,7 @@ func main() {
 		r.Post("/password/forgot", authHandler.ForgotPassword)
 		r.Post("/password/reset", authHandler.ResetPassword)
 		r.With(requireAuth).Get("/me", authHandler.Me)
+		r.With(requireAuth).Post("/password/change", authHandler.ChangePassword)
 	})
 
 	// Public content — no login required. Spec section 48 (Public vs Private Data): events,

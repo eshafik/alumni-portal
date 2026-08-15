@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { useNavigate, useSearchParams, useLocation, Link } from 'react-router-dom'
+import { Loader2 } from 'lucide-react'
 import { authApi } from '../../api/auth'
 import { ApiError } from '../../api/client'
 import { useCooldown } from '../../hooks/useCooldown'
@@ -14,6 +15,7 @@ export default function VerifyOtp() {
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
   const [loading, setLoading] = useState(false)
+  const [resending, setResending] = useState(false)
   const { remaining, start } = useCooldown()
   const navigate = useNavigate()
 
@@ -46,12 +48,15 @@ export default function VerifyOtp() {
   const resend = async () => {
     if (remaining > 0) return
     setError('')
+    setResending(true)
     try {
       const res = await authApi.resendOtp(email)
       setMessage('A new code has been sent.')
       start(res.cooldownSeconds)
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Could not resend code')
+    } finally {
+      setResending(false)
     }
   }
 
@@ -60,17 +65,21 @@ export default function VerifyOtp() {
       <h1 className="text-2xl font-semibold mb-6 text-center">Verify your email</h1>
       <Card>
         <form onSubmit={onSubmit} className="space-y-4">
-          <Input type="email" placeholder="Email" required value={email} onChange={(e) => setEmail(e.target.value)} />
-          <Input placeholder="6-digit code" required maxLength={6} value={code} onChange={(e) => setCode(e.target.value)} />
+          <fieldset disabled={loading} className="space-y-4">
+            <Input type="email" placeholder="Email" required value={email} onChange={(e) => setEmail(e.target.value)} />
+            <Input placeholder="6-digit code" required maxLength={6} value={code} onChange={(e) => setCode(e.target.value)} />
+          </fieldset>
           {error && <p className="text-sm text-red-600">{error}</p>}
           {message && <p className="text-sm text-green-600">{message}</p>}
           <Button type="submit" className="w-full" disabled={loading}>
+            {loading && <Loader2 size={15} className="animate-spin mr-1.5" />}
             {loading ? 'Verifying...' : 'Verify'}
           </Button>
         </form>
         <div className="mt-4 text-sm text-center">
-          <button onClick={resend} disabled={remaining > 0} className="text-brand disabled:text-slate-400 disabled:cursor-not-allowed">
-            {remaining > 0 ? `Resend code in ${remaining}s` : 'Resend code'}
+          <button onClick={resend} disabled={remaining > 0 || loading || resending} className="text-brand disabled:text-slate-400 disabled:cursor-not-allowed inline-flex items-center gap-1.5">
+            {resending && <Loader2 size={13} className="animate-spin" />}
+            {remaining > 0 ? `Resend code in ${remaining}s` : resending ? 'Resending...' : 'Resend code'}
           </button>
         </div>
         <p className="mt-2 text-sm text-center text-slate-500">

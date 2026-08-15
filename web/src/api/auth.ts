@@ -35,4 +35,6 @@ export const authApi = {
   forgotPassword: (email: string) => api.post<OTPResponse>('/api/auth/password/forgot', { email }),
   resetPassword: (email: string, code: string, newPassword: string) =>
     api.post<{ message: string }>('/api/auth/password/reset', { email, code, newPassword }),
+  changePassword: (currentPassword: string, newPassword: string) =>
+    api.post<{ message: string }>('/api/auth/password/change', { currentPassword, newPassword }),
 }

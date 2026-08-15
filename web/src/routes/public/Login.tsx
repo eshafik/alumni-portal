@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { Loader2 } from 'lucide-react'
 import { authApi } from '../../api/auth'
 import { ApiError } from '../../api/client'
 import { useAuth } from '../../hooks/useAuth'
@@ -33,16 +34,19 @@ export default function Login() {
       <h1 className="text-2xl font-semibold mb-6 text-center">Log in</h1>
       <Card>
         <form onSubmit={onSubmit} className="space-y-4">
-          <div>
-            <label className="text-sm font-medium block mb-1">Email</label>
-            <Input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
-          </div>
-          <div>
-            <label className="text-sm font-medium block mb-1">Password</label>
-            <Input type="password" required value={password} onChange={(e) => setPassword(e.target.value)} />
-          </div>
+          <fieldset disabled={loading} className="space-y-4">
+            <div>
+              <label className="text-sm font-medium block mb-1">Email</label>
+              <Input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
+            </div>
+            <div>
+              <label className="text-sm font-medium block mb-1">Password</label>
+              <Input type="password" required value={password} onChange={(e) => setPassword(e.target.value)} />
+            </div>
+          </fieldset>
           {error && <p className="text-sm text-red-600">{error}</p>}
           <Button type="submit" className="w-full" disabled={loading}>
+            {loading && <Loader2 size={15} className="animate-spin mr-1.5" />}
             {loading ? 'Logging in...' : 'Log in'}
           </Button>
         </form>

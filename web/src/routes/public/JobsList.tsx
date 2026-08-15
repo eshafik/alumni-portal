@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Briefcase, MapPin, Clock, Wallet } from 'lucide-react'
+import { Briefcase, MapPin, Clock, Wallet, Search, Loader2 } from 'lucide-react'
 import { jobsApi } from '../../api/content'
 import type { JobPost } from '../../types/api'
 import { ROLE } from '../../types/api'
-import { Button, Card, Loading, EmptyState, Pagination } from '../../components/shared/ui'
+import { Button, Card, Input, Loading, EmptyState, Pagination } from '../../components/shared/ui'
 import { useAuth } from '../../hooks/useAuth'
+import { useDebounce } from '../../hooks/useDebounce'
 
 function timeAgo(iso: string) {
   const diffMs = Date.now() - new Date(iso).getTime()
@@ -21,6 +22,8 @@ function timeAgo(iso: string) {
 export default function JobsList() {
   const { user } = useAuth()
   const canPost = user && [ROLE.Alumni, ROLE.Admin, ROLE.SuperAdmin].includes(user.roleId as any)
+  const [q, setQ] = useState('')
+  const debouncedQ = useDebounce(q, 300)
   const [page, setPage] = useState(1)
   const [jobs, setJobs] = useState<JobPost[]>([])
   const [total, setTotal] = useState(0)
@@ -29,17 +32,17 @@ export default function JobsList() {
   useEffect(() => {
     setLoading(true)
     jobsApi
-      .list(page)
+      .list(page, debouncedQ)
       .then((res) => {
         setJobs(res.items ?? [])
         setTotal(res.total)
       })
       .finally(() => setLoading(false))
-  }, [page])
+  }, [page, debouncedQ])
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-4">
         <h1 className="text-2xl font-semibold">Job Opportunities</h1>
         {canPost && (
           <Link to="/jobs/new">
@@ -47,12 +50,27 @@ export default function JobsList() {
           </Link>
         )}
       </div>
-      {loading ? (
+
+      <div className="relative max-w-xs mb-6">
+        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+        <Input
+          placeholder="Search jobs, company, location..."
+          className="pl-9"
+          value={q}
+          onChange={(e) => {
+            setQ(e.target.value)
+            setPage(1)
+          }}
+        />
+        {loading && <Loader2 size={15} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 animate-spin" />}
+      </div>
+
+      {loading && jobs.length === 0 ? (
         <Loading />
       ) : jobs.length === 0 ? (
-        <EmptyState title="No job postings yet" />
+        <EmptyState title="No job postings found" />
       ) : (
-        <div className="space-y-3">
+        <div className={`space-y-3 transition-opacity ${loading ? 'opacity-50 pointer-events-none' : ''}`}>
           {jobs.map((j) => (
             <Link key={j.id} to={`/jobs/${j.id}`}>
               <Card className="hover:shadow-md hover:border-brand/30 transition-all p-0 overflow-hidden">
@@ -87,13 +105,14 @@ export default function JobsList() {
                         </span>
                       )}
                     </div>
-                    {(j.postedByAvatarUrl || j.postedByName) && (
+                    {j.postedByName && (
                       <div className="mt-2 flex items-center gap-1.5">
                         {j.postedByAvatarUrl ? (
-                          <img src={j.postedByAvatarUrl} alt={j.postedByName ?? ''} title={j.postedByName ?? ''} className="w-5 h-5 rounded-full object-cover" />
+                          <img src={j.postedByAvatarUrl} alt={j.postedByName} className="w-5 h-5 rounded-full object-cover shrink-0" />
                         ) : (
-                          <span className="text-xs text-slate-400">Posted by {j.postedByName}</span>
+                          <span className="w-5 h-5 rounded-full bg-slate-200 shrink-0" />
                         )}
+                        <span className="text-xs text-slate-400">Posted by {j.postedByName}</span>
                       </div>
                     )}
                   </div>

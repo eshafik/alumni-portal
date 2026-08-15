@@ -1,6 +1,8 @@
 import { useEffect, useState, type FormEvent } from 'react'
+import { Loader2 } from 'lucide-react'
 import { useAuth } from '../../hooks/useAuth'
 import { api, ApiError } from '../../api/client'
+import { authApi } from '../../api/auth'
 import { alumniApi, configApi } from '../../api/directory'
 import { ROLE } from '../../types/api'
 import type { BloodGroup } from '../../types/api'
@@ -39,9 +41,9 @@ const emptyForm: FormState = {
   linkedinUrl: '',
   whatsappNumber: '',
   websiteUrl: '',
-  privacyEmail: false,
-  privacyPhone: false,
-  privacyWhatsapp: false,
+  privacyEmail: true,
+  privacyPhone: true,
+  privacyWhatsapp: true,
   privacyLocation: true,
   privacyCompany: true,
 }
@@ -56,6 +58,12 @@ export default function Profile() {
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState('')
+
+  const [currentPassword, setCurrentPassword] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [passwordSaving, setPasswordSaving] = useState(false)
+  const [passwordMessage, setPasswordMessage] = useState('')
+  const [passwordError, setPasswordError] = useState('')
 
   useEffect(() => {
     configApi.bloodGroups().then((bg) => setBloodGroups(bg ?? []))
@@ -75,20 +83,20 @@ export default function Profile() {
           linkedinUrl: data.linkedinUrl ?? '',
           whatsappNumber: data.whatsappNumber ?? '',
           websiteUrl: data.websiteUrl ?? '',
-          privacyEmail: data.privacyEmail ?? false,
-          privacyPhone: data.privacyPhone ?? false,
-          privacyWhatsapp: data.privacyWhatsapp ?? false,
+          privacyEmail: data.privacyEmail ?? true,
+          privacyPhone: data.privacyPhone ?? true,
+          privacyWhatsapp: data.privacyWhatsapp ?? true,
           privacyLocation: data.privacyLocation ?? true,
           privacyCompany: data.privacyCompany ?? true,
         }))
         setAvatarUrl(data.avatarUrl)
       })
+      .catch(() => setError('Could not load your profile — please refresh and try again.'))
       .finally(() => setLoading(false))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAlumni])
 
-  const onSubmit = async (e: FormEvent) => {
-    e.preventDefault()
+  const saveProfile = async () => {
     setSaved(false)
     setError('')
     setSaving(true)
@@ -116,8 +124,52 @@ export default function Profile() {
     }
   }
 
+  const onSubmit = (e: FormEvent) => {
+    e.preventDefault()
+    saveProfile()
+  }
+
+  const [privacySaving, setPrivacySaving] = useState(false)
+  const [privacySaved, setPrivacySaved] = useState(false)
+  const [privacyError, setPrivacyError] = useState('')
+
+  const savePrivacy = async () => {
+    setPrivacySaved(false)
+    setPrivacyError('')
+    setPrivacySaving(true)
+    try {
+      await alumniApi.updateMe({
+        ...form,
+        bloodGroupId: form.bloodGroupId ? Number(form.bloodGroupId) : null,
+      })
+      await refresh()
+      setPrivacySaved(true)
+    } catch (err) {
+      setPrivacyError(err instanceof ApiError ? err.message : 'Could not save privacy settings')
+    } finally {
+      setPrivacySaving(false)
+    }
+  }
+
   const set = (key: keyof FormState) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
     setForm((f) => ({ ...f, [key]: e.target.type === 'checkbox' ? (e.target as HTMLInputElement).checked : e.target.value }))
+
+  const onChangePassword = async (e: FormEvent) => {
+    e.preventDefault()
+    setPasswordMessage('')
+    setPasswordError('')
+    setPasswordSaving(true)
+    try {
+      await authApi.changePassword(currentPassword, newPassword)
+      setPasswordMessage('Password updated.')
+      setCurrentPassword('')
+      setNewPassword('')
+    } catch (err) {
+      setPasswordError(err instanceof ApiError ? err.message : 'Could not change password')
+    } finally {
+      setPasswordSaving(false)
+    }
+  }
 
   if (loading) return <Loading />
 
@@ -127,6 +179,7 @@ export default function Profile() {
       <p className="text-sm text-slate-500 mb-6">Email can't be changed. Everything else here is yours to update.</p>
       <Card>
         <form onSubmit={onSubmit} className="space-y-5">
+          <fieldset disabled={saving} className="space-y-5">
           <div className="pb-5 border-b border-slate-100">
             <AvatarUploader
               avatarUrl={avatarUrl}
@@ -164,36 +217,64 @@ export default function Profile() {
               </option>
             ))}
           </select>
-
-          {isAlumni && (
-            <div className="border-t pt-4">
-              <p className="text-sm font-medium mb-2">Privacy — show to other members</p>
-              <div className="space-y-2 text-sm">
-                {(
-                  [
-                    ['privacyEmail', 'Email'],
-                    ['privacyPhone', 'Phone'],
-                    ['privacyWhatsapp', 'WhatsApp'],
-                    ['privacyLocation', 'Location'],
-                    ['privacyCompany', 'Company'],
-                  ] as const
-                ).map(([key, label]) => (
-                  <label key={key} className="flex items-center gap-2">
-                    <input type="checkbox" checked={form[key]} onChange={set(key)} />
-                    {label}
-                  </label>
-                ))}
-              </div>
-            </div>
-          )}
+          </fieldset>
 
           {error && <p className="text-sm text-red-600">{error}</p>}
           {saved && <p className="text-sm text-green-600">Profile updated.</p>}
           <Button type="submit" disabled={saving}>
+            {saving && <Loader2 size={15} className="animate-spin mr-1.5" />}
             {saving ? 'Saving...' : 'Save changes'}
           </Button>
         </form>
       </Card>
+
+      <h2 className="text-xl font-semibold mt-8 mb-2">Security</h2>
+      <p className="text-sm text-slate-500 mb-6">Manage your password and who can see your contact details.</p>
+
+      <Card>
+        <p className="text-sm font-medium mb-3">Change password</p>
+        <form onSubmit={onChangePassword} className="space-y-3">
+          <fieldset disabled={passwordSaving} className="space-y-3">
+            <Input type="password" placeholder="Current password" required value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} />
+            <Input type="password" placeholder="New password" required minLength={8} value={newPassword} onChange={(e) => setNewPassword(e.target.value)} />
+          </fieldset>
+          {passwordError && <p className="text-sm text-red-600">{passwordError}</p>}
+          {passwordMessage && <p className="text-sm text-green-600">{passwordMessage}</p>}
+          <Button type="submit" variant="secondary" disabled={passwordSaving}>
+            {passwordSaving && <Loader2 size={15} className="animate-spin mr-1.5" />}
+            {passwordSaving ? 'Updating...' : 'Update password'}
+          </Button>
+        </form>
+      </Card>
+
+      {isAlumni && (
+        <Card className="mt-4">
+          <p className="text-sm font-medium mb-1">Who can see your contact info</p>
+          <p className="text-xs text-slate-400 mb-3">Visible to other approved members by default. Uncheck any field you'd rather keep private.</p>
+          <fieldset disabled={privacySaving} className="space-y-2 text-sm">
+            {(
+              [
+                ['privacyEmail', 'Email'],
+                ['privacyPhone', 'Phone'],
+                ['privacyWhatsapp', 'WhatsApp'],
+                ['privacyLocation', 'Location'],
+                ['privacyCompany', 'Company'],
+              ] as const
+            ).map(([key, label]) => (
+              <label key={key} className="flex items-center gap-2">
+                <input type="checkbox" checked={form[key]} onChange={set(key)} />
+                {label}
+              </label>
+            ))}
+          </fieldset>
+          {privacyError && <p className="text-sm text-red-600 mt-3">{privacyError}</p>}
+          {privacySaved && <p className="text-sm text-green-600 mt-3">Privacy settings saved.</p>}
+          <Button variant="secondary" className="mt-3" onClick={savePrivacy} disabled={privacySaving}>
+            {privacySaving && <Loader2 size={15} className="animate-spin mr-1.5" />}
+            {privacySaving ? 'Saving...' : 'Save privacy settings'}
+          </Button>
+        </Card>
+      )}
     </div>
   )
 }

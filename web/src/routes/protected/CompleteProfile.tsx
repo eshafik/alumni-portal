@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { CheckCircle2 } from 'lucide-react'
+import { CheckCircle2, Loader2 } from 'lucide-react'
 import { useAuth } from '../../hooks/useAuth'
 import { useInstitution } from '../../hooks/useInstitution'
 import { api, ApiError } from '../../api/client'
@@ -103,11 +103,12 @@ export default function CompleteProfile() {
           linkedinUrl: form.linkedinUrl,
           whatsappNumber: form.whatsappNumber,
           websiteUrl: form.websiteUrl,
-          // Sensible privacy defaults for a first-time setup — user can revisit these anytime
-          // from the regular Profile page.
-          privacyEmail: false,
-          privacyPhone: false,
-          privacyWhatsapp: false,
+          // Everything visible by default at first-time setup — no privacy toggles are shown
+          // here, so nothing should default to hidden. Revisit anytime from the Profile page's
+          // Security section.
+          privacyEmail: true,
+          privacyPhone: true,
+          privacyWhatsapp: true,
           privacyLocation: true,
           privacyCompany: true,
         })
@@ -146,6 +147,7 @@ export default function CompleteProfile() {
 
       <Card>
         <form onSubmit={onSubmit} className="space-y-5">
+          <fieldset disabled={saving} className="space-y-5">
           <div className="pb-5 border-b border-slate-100">
             <AvatarUploader
               avatarUrl={avatarUrl}
@@ -165,6 +167,10 @@ export default function CompleteProfile() {
 
               {isAlumni && (
                 <>
+                  <div>
+                    <label className="text-sm font-medium block mb-1">Bio</label>
+                    <textarea className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" rows={3} value={form.bio} onChange={set('bio')} />
+                  </div>
                   <Input placeholder="Current designation" value={form.currentDesignation} onChange={set('currentDesignation')} />
                   <Input placeholder="Current organization" value={form.currentCompanyName} onChange={set('currentCompanyName')} />
                 </>
@@ -189,17 +195,15 @@ export default function CompleteProfile() {
               )}
             </div>
           </div>
+          </fieldset>
 
           {error && <p className="text-sm text-red-600">{error}</p>}
 
           <Button type="submit" className="w-full" disabled={saving}>
-            {saving ? (
-              'Saving...'
-            ) : (
-              <span className="inline-flex items-center gap-1.5">
-                <CheckCircle2 size={16} /> Save & continue to directory
-              </span>
-            )}
+            <span className="inline-flex items-center gap-1.5">
+              {saving ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle2 size={16} />}
+              {saving ? 'Saving...' : 'Save & continue to directory'}
+            </span>
           </Button>
           <p className="text-xs text-center text-slate-400">You can update any of this later from your profile.</p>
         </form>

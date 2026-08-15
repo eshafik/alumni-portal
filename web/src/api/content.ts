@@ -98,7 +98,7 @@ export interface CreateJobPayload {
 }
 
 export const jobsApi = {
-  list: (page = 1) => api.get<PagedResult<JobPost>>(`/api/jobs?page=${page}`),
+  list: (page = 1, q = '') => api.get<PagedResult<JobPost>>(`/api/jobs?page=${page}&q=${encodeURIComponent(q)}`),
   get: (id: number) => api.get<JobPost>(`/api/jobs/${id}`),
   create: (payload: CreateJobPayload) => api.post<JobPost>('/api/jobs', payload),
 }

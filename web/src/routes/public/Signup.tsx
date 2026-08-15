@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { Loader2 } from 'lucide-react'
 import { authApi } from '../../api/auth'
 import { configApi } from '../../api/directory'
 import { ApiError } from '../../api/client'
@@ -77,66 +78,69 @@ export default function Signup() {
       <h1 className="text-2xl font-semibold mb-6 text-center">Join the Alumni Community</h1>
       <Card>
         <form onSubmit={onSubmit} className="space-y-4">
-          <div className="flex gap-2">
-            {(['alumni', 'student'] as const).map((t) => (
-              <button
-                key={t}
-                type="button"
-                onClick={() => setAccountType(t)}
-                className={`flex-1 rounded-md border py-2 text-sm font-medium capitalize ${accountType === t ? 'border-brand bg-blue-50 text-brand' : 'border-slate-300 text-slate-600'}`}
-              >
-                {t}
-              </button>
-            ))}
-          </div>
-          <Input placeholder="Full name" required value={fullName} onChange={(e) => setFullName(e.target.value)} />
-          <Input type="email" placeholder="Email" required value={email} onChange={(e) => setEmail(e.target.value)} />
-          <PhoneInput required value={phone} onChange={setPhone} />
-          <Input type="password" placeholder="Password (min 8 characters)" required minLength={8} value={password} onChange={(e) => setPassword(e.target.value)} />
+          <fieldset disabled={loading} className="space-y-4">
+            <div className="flex gap-2">
+              {(['alumni', 'student'] as const).map((t) => (
+                <button
+                  key={t}
+                  type="button"
+                  onClick={() => setAccountType(t)}
+                  className={`flex-1 rounded-md border py-2 text-sm font-medium capitalize disabled:opacity-50 ${accountType === t ? 'border-brand bg-blue-50 text-brand' : 'border-slate-300 text-slate-600'}`}
+                >
+                  {t}
+                </button>
+              ))}
+            </div>
+            <Input placeholder="Full name" required value={fullName} onChange={(e) => setFullName(e.target.value)} />
+            <Input type="email" placeholder="Email" required value={email} onChange={(e) => setEmail(e.target.value)} />
+            <PhoneInput required value={phone} onChange={setPhone} />
+            <Input type="password" placeholder="Password (min 8 characters)" required minLength={8} value={password} onChange={(e) => setPassword(e.target.value)} />
 
-          <select className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" required value={departmentId} onChange={(e) => setDepartmentId(e.target.value)}>
-            <option value="">Select department</option>
-            {departments.map((d) => (
-              <option key={d.id} value={d.id}>
-                {d.name}
-              </option>
-            ))}
-          </select>
-          <select className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" required value={programId} onChange={(e) => setProgramId(e.target.value)} disabled={!departmentId}>
-            <option value="">Select program</option>
-            {programs.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-              </option>
-            ))}
-          </select>
-          <select className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" required value={batchId} onChange={(e) => setBatchId(e.target.value)} disabled={!programId}>
-            <option value="">Select batch</option>
-            {batches.map((b) => (
-              <option key={b.id} value={b.id}>
-                {b.label || `${b.startYear}-${b.endYear}`}
-              </option>
-            ))}
-          </select>
-          <select className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" required value={bloodGroupId} onChange={(e) => setBloodGroupId(e.target.value)}>
-            <option value="">Select blood group</option>
-            {bloodGroups.map((bg) => (
-              <option key={bg.id} value={bg.id}>
-                {bg.name}
-              </option>
-            ))}
-          </select>
+            <select className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" required value={departmentId} onChange={(e) => setDepartmentId(e.target.value)}>
+              <option value="">Select department</option>
+              {departments.map((d) => (
+                <option key={d.id} value={d.id}>
+                  {d.name}
+                </option>
+              ))}
+            </select>
+            <select className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" required value={programId} onChange={(e) => setProgramId(e.target.value)} disabled={!departmentId}>
+              <option value="">Select program</option>
+              {programs.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+            <select className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" required value={batchId} onChange={(e) => setBatchId(e.target.value)} disabled={!programId}>
+              <option value="">Select batch</option>
+              {batches.map((b) => (
+                <option key={b.id} value={b.id}>
+                  {b.label || `${b.startYear}-${b.endYear}`}
+                </option>
+              ))}
+            </select>
+            <select className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" required value={bloodGroupId} onChange={(e) => setBloodGroupId(e.target.value)}>
+              <option value="">Select blood group</option>
+              {bloodGroups.map((bg) => (
+                <option key={bg.id} value={bg.id}>
+                  {bg.name}
+                </option>
+              ))}
+            </select>
 
-          {accountType === 'alumni' && (
-            <>
-              <Input placeholder="Current designation (optional)" value={currentDesignation} onChange={(e) => setCurrentDesignation(e.target.value)} />
-              <Input placeholder="Current organization (optional)" value={companyName} onChange={(e) => setCompanyName(e.target.value)} />
-            </>
-          )}
+            {accountType === 'alumni' && (
+              <>
+                <Input placeholder="Current designation (optional)" value={currentDesignation} onChange={(e) => setCurrentDesignation(e.target.value)} />
+                <Input placeholder="Current organization (optional)" value={companyName} onChange={(e) => setCompanyName(e.target.value)} />
+              </>
+            )}
+          </fieldset>
 
           {error && <p className="text-sm text-red-600">{error}</p>}
           {message && <p className="text-sm text-green-600">{message}</p>}
           <Button type="submit" className="w-full" disabled={loading}>
+            {loading && <Loader2 size={15} className="animate-spin mr-1.5" />}
             {loading ? 'Creating account...' : 'Create account'}
           </Button>
         </form>

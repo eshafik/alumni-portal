@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { CalendarDays, MapPin, Clock, ImageIcon, ExternalLink } from 'lucide-react'
+import { CalendarDays, MapPin, Clock, ImageIcon, ExternalLink, Search, Loader2 } from 'lucide-react'
 import { eventsApi } from '../../api/content'
 import type { Event } from '../../types/api'
 import { Button, Card, Input, Loading, EmptyState, Pagination } from '../../components/shared/ui'
@@ -52,21 +52,25 @@ export default function EventsList() {
   return (
     <div>
       <h1 className="text-2xl font-semibold mb-2">Events</h1>
-      <Input
-        placeholder="Search events..."
-        className="max-w-xs mb-6"
-        value={q}
-        onChange={(e) => {
-          setQ(e.target.value)
-          setPage(1)
-        }}
-      />
-      {loading ? (
+      <div className="relative max-w-xs mb-6">
+        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+        <Input
+          placeholder="Search events..."
+          className="pl-9"
+          value={q}
+          onChange={(e) => {
+            setQ(e.target.value)
+            setPage(1)
+          }}
+        />
+        {loading && <Loader2 size={15} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 animate-spin" />}
+      </div>
+      {loading && events.length === 0 ? (
         <Loading />
       ) : events.length === 0 ? (
         <EmptyState title="No events found" />
       ) : (
-        <div className="space-y-4">
+        <div className={`space-y-4 transition-opacity ${loading ? 'opacity-50 pointer-events-none' : ''}`}>
           {events.map((e) => (
             <Card key={e.id} className="p-0 overflow-hidden hover:shadow-md hover:border-brand/30 transition-all">
               <div className="flex flex-col sm:flex-row">

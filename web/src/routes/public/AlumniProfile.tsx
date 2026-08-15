@@ -1,15 +1,18 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { api } from '../../api/client'
-import { Card, Loading } from '../../components/shared/ui'
+import { Avatar, Card, Loading } from '../../components/shared/ui'
 
 interface ProfileDetail {
   fullName: string
+  avatarUrl?: string
   bio: string
   batchLabel: string
   programName: string
   departmentName: string
   currentDesignation: string
+  companyName?: string
+  bloodGroupName?: string
   linkedinUrl: string
   websiteUrl: string
   email?: string
@@ -37,11 +40,11 @@ export default function AlumniProfile() {
     <div className="max-w-2xl mx-auto">
       <Card>
         <div className="flex items-center gap-4">
-          <div className="w-20 h-20 rounded-full bg-slate-200 shrink-0" />
+          <Avatar name={profile.fullName} url={profile.avatarUrl} size="lg" />
           <div>
             <h1 className="text-xl font-semibold">{profile.fullName}</h1>
             <p className="text-slate-500 text-sm">
-              {profile.currentDesignation && `${profile.currentDesignation} · `}
+              {profile.currentDesignation && `${profile.currentDesignation}${profile.companyName ? ` at ${profile.companyName}` : ''} · `}
               {profile.departmentName} · {profile.batchLabel}
             </p>
           </div>
@@ -52,6 +55,12 @@ export default function AlumniProfile() {
             <div>
               <dt className="text-slate-400">Location</dt>
               <dd>{profile.currentLocation}</dd>
+            </div>
+          )}
+          {profile.bloodGroupName && (
+            <div>
+              <dt className="text-slate-400">Blood Group</dt>
+              <dd>{profile.bloodGroupName}</dd>
             </div>
           )}
           {profile.email && (
@@ -78,6 +87,16 @@ export default function AlumniProfile() {
               <dd>
                 <a href={profile.linkedinUrl} target="_blank" rel="noreferrer" className="text-brand">
                   View profile
+                </a>
+              </dd>
+            </div>
+          )}
+          {profile.websiteUrl && (
+            <div>
+              <dt className="text-slate-400">Website</dt>
+              <dd>
+                <a href={profile.websiteUrl} target="_blank" rel="noreferrer" className="text-brand">
+                  {profile.websiteUrl}
                 </a>
               </dd>
             </div>

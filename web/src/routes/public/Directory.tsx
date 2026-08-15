@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Search, Loader2 } from 'lucide-react'
 import { alumniApi, configApi } from '../../api/directory'
-import type { Department, Batch } from '../../types/api'
+import type { Department, Batch, BloodGroup } from '../../types/api'
 import { Card, Input, Select, Avatar, EmptyState, CardGridSkeleton } from '../../components/shared/ui'
 import { useDebounce } from '../../hooks/useDebounce'
 import { useInfiniteList } from '../../hooks/useInfiniteList'
@@ -12,17 +12,20 @@ export default function Directory() {
   const debouncedQ = useDebounce(q, 300)
   const [departmentId, setDepartmentId] = useState('')
   const [batchId, setBatchId] = useState('')
+  const [bloodGroupId, setBloodGroupId] = useState('')
   const [departments, setDepartments] = useState<Department[]>([])
   const [batches, setBatches] = useState<Batch[]>([])
+  const [bloodGroups, setBloodGroups] = useState<BloodGroup[]>([])
 
   useEffect(() => {
     configApi.departments().then((d) => setDepartments(d ?? []))
     configApi.batches().then((b) => setBatches(b ?? []))
+    configApi.bloodGroups().then((bg) => setBloodGroups(bg ?? []))
   }, [])
 
   const { items: rows, total, loading, loadingMore, hasMore, sentinelRef } = useInfiniteList(
-    (page) => alumniApi.list({ q: debouncedQ, departmentId, batchId, page }),
-    [debouncedQ, departmentId, batchId],
+    (page) => alumniApi.list({ q: debouncedQ, departmentId, batchId, bloodGroupId, page }),
+    [debouncedQ, departmentId, batchId, bloodGroupId],
   )
 
   return (
@@ -37,7 +40,8 @@ export default function Directory() {
       <div className="flex flex-wrap gap-3 mb-6">
         <div className="relative flex-1 min-w-[220px] max-w-xs">
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-          <Input placeholder="Search by name, company, skill..." className="pl-9" value={q} onChange={(e) => setQ(e.target.value)} />
+          <Input placeholder="Search by name, company, skill..." className="pl-9 pr-9" value={q} onChange={(e) => setQ(e.target.value)} />
+          {loading && <Loader2 size={15} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 animate-spin" />}
         </div>
         <Select value={departmentId} onChange={(e) => setDepartmentId(e.target.value)} className="w-auto min-w-[160px]">
           <option value="">All departments</option>
@@ -55,15 +59,23 @@ export default function Directory() {
             </option>
           ))}
         </Select>
+        <Select value={bloodGroupId} onChange={(e) => setBloodGroupId(e.target.value)} className="w-auto min-w-[140px]">
+          <option value="">All blood groups</option>
+          {bloodGroups.map((bg) => (
+            <option key={bg.id} value={bg.id}>
+              {bg.name}
+            </option>
+          ))}
+        </Select>
       </div>
 
-      {loading ? (
+      {loading && rows.length === 0 ? (
         <CardGridSkeleton />
       ) : rows.length === 0 ? (
         <EmptyState title="No alumni found" description="Try adjusting your search or filters." />
       ) : (
         <>
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className={`grid sm:grid-cols-2 lg:grid-cols-3 gap-4 transition-opacity ${loading ? 'opacity-50 pointer-events-none' : ''}`}>
             {rows.map((r) => (
               <Link key={r.userId} to={`/directory/${r.userId}`}>
                 <Card className="hover:shadow-md hover:border-slate-300 transition-all">
@@ -77,6 +89,7 @@ export default function Directory() {
                       </p>
                       <p className="text-xs text-slate-400 truncate">
                         {r.departmentName} · {r.batchLabel}
+                        {r.bloodGroupName && ` · ${r.bloodGroupName}`}
                       </p>
                     </div>
                   </div>

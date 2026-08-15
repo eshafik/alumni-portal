@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/jmoiron/sqlx"
 
@@ -23,34 +24,55 @@ type studentDirectoryRow struct {
 	BatchLabel         string `db:"batch_label" json:"batchLabel"`
 	ProgramName        string `db:"program_name" json:"programName"`
 	DepartmentName     string `db:"department_name" json:"departmentName"`
+	BloodGroupName     string `db:"blood_group_name" json:"bloodGroupName"`
 }
 
 // List returns current (non-converted) students only, paginated. View-only data — no
 // mutation endpoints exist for viewers, matching the spec's "students are view-only" rule.
 func (h *StudentHandler) List(w http.ResponseWriter, r *http.Request) {
+	q := strings.TrimSpace(r.URL.Query().Get("q"))
 	batchID := r.URL.Query().Get("batchId")
+	departmentID := r.URL.Query().Get("departmentId")
+	bloodGroupID := r.URL.Query().Get("bloodGroupId")
 	pg := httpx.ParsePagination(r)
 
-	where := "WHERE u.status = 'approved' AND sp.status = 'active'"
-	args := []any{}
-	if batchID != "" {
-		where += " AND sp.batch_id = ?"
-		args = append(args, batchID)
-	}
-
-	var total int
-	_ = h.DB.Get(&total, `SELECT COUNT(*) FROM student_profiles sp JOIN users u ON u.id = sp.user_id `+where, args...)
-
-	rows := []studentDirectoryRow{}
-	q := `SELECT u.id AS user_id, u.full_name, sp.avatar_attachment_id, b.label AS batch_label, pr.name AS program_name, d.name AS department_name
-		FROM student_profiles sp
+	baseFrom := `FROM student_profiles sp
 		JOIN users u ON u.id = sp.user_id
 		JOIN batches b ON b.id = sp.batch_id
 		JOIN programs pr ON pr.id = sp.program_id
 		JOIN departments d ON d.id = pr.department_id
-		` + where + ` ORDER BY u.full_name LIMIT ? OFFSET ?`
-	args = append(args, pg.PageSize, pg.Offset)
-	if err := h.DB.Select(&rows, q, args...); err != nil {
+		LEFT JOIN blood_groups bg ON bg.id = sp.blood_group_id`
+
+	where := []string{"u.status = 'approved'", "sp.status = 'active'"}
+	args := []any{}
+	if q != "" {
+		where = append(where, "u.full_name LIKE ?")
+		args = append(args, "%"+q+"%")
+	}
+	if batchID != "" {
+		where = append(where, "sp.batch_id = ?")
+		args = append(args, batchID)
+	}
+	if departmentID != "" {
+		where = append(where, "d.id = ?")
+		args = append(args, departmentID)
+	}
+	if bloodGroupID != "" {
+		where = append(where, "sp.blood_group_id = ?")
+		args = append(args, bloodGroupID)
+	}
+	whereSQL := "WHERE " + strings.Join(where, " AND ")
+
+	var total int
+	_ = h.DB.Get(&total, "SELECT COUNT(*) "+baseFrom+" "+whereSQL, args...)
+
+	rows := []studentDirectoryRow{}
+	selectQuery := `SELECT u.id AS user_id, u.full_name, sp.avatar_attachment_id,
+		b.label AS batch_label, pr.name AS program_name, d.name AS department_name,
+		COALESCE(bg.name, '') AS blood_group_name
+		` + baseFrom + " " + whereSQL + ` ORDER BY u.full_name LIMIT ? OFFSET ?`
+	pagedArgs := append(append([]any{}, args...), pg.PageSize, pg.Offset)
+	if err := h.DB.Select(&rows, selectQuery, pagedArgs...); err != nil {
 		httpx.Error(w, http.StatusInternalServerError, "list failed")
 		return
 	}

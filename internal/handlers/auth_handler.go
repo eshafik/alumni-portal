@@ -347,3 +347,48 @@ func (h *AuthHandler) ResetPassword(w http.ResponseWriter, r *http.Request) {
 	}
 	httpx.JSON(w, http.StatusOK, map[string]string{"message": "Password updated. You can now log in."})
 }
+
+type changePasswordRequest struct {
+	CurrentPassword string `json:"currentPassword"`
+	NewPassword     string `json:"newPassword"`
+}
+
+// ChangePassword lets a logged-in user set a new password from within the app (distinct from
+// ForgotPassword/ResetPassword, which is the unauthenticated OTP-based recovery flow for when
+// they can't log in at all). Requires the current password to prevent a hijacked session from
+// locking the real owner out.
+func (h *AuthHandler) ChangePassword(w http.ResponseWriter, r *http.Request) {
+	u := auth.CurrentUser(r)
+	if u == nil {
+		httpx.Error(w, http.StatusUnauthorized, "authentication required")
+		return
+	}
+	var req changePasswordRequest
+	if err := httpx.DecodeJSON(r, &req); err != nil {
+		httpx.Error(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	if len(req.NewPassword) < 8 {
+		httpx.Error(w, http.StatusBadRequest, "new password must be at least 8 characters")
+		return
+	}
+	var currentHash string
+	if err := h.DB.Get(&currentHash, `SELECT password_hash FROM users WHERE id = ?`, u.ID); err != nil {
+		httpx.Error(w, http.StatusInternalServerError, "change failed")
+		return
+	}
+	if !auth.VerifyPassword(currentHash, req.CurrentPassword) {
+		httpx.Error(w, http.StatusUnauthorized, "current password is incorrect")
+		return
+	}
+	hash, err := auth.HashPassword(req.NewPassword)
+	if err != nil {
+		httpx.Error(w, http.StatusInternalServerError, "change failed")
+		return
+	}
+	if _, err := h.DB.Exec(`UPDATE users SET password_hash = ?, updated_at = datetime('now') WHERE id = ?`, hash, u.ID); err != nil {
+		httpx.Error(w, http.StatusInternalServerError, "change failed")
+		return
+	}
+	httpx.JSON(w, http.StatusOK, map[string]string{"message": "Password updated."})
+}
