@@ -1,56 +1,153 @@
 # Alumni Portal
 
-Lightweight alumni association portal: Go backend (SQLite + FTS5), React/Vite CSR frontend,
-single-binary deployment.
+A self-hostable alumni association portal: member directory, job board, events with
+registration, notices, an alumni business directory, and a committee/leadership page —
+all served from a single Go binary with an embedded React frontend and a SQLite database.
 
-## Local development
+No external services required to run it. No Docker, no Kubernetes, no managed database — copy
+the binary to a VPS, point it at a `.env` file, and it's live.
 
-Backend:
+## Features
 
-```
+- **Member directory** — searchable, filterable (department, batch, blood group) alumni and
+  student directories with per-field privacy controls (a member chooses what's visible to
+  others: email, phone, WhatsApp, location, current company).
+- **Role-based access** — SuperAdmin, Admin, Moderator, Alumni, Student, each with a distinct
+  set of permissions. New signups go through OTP email verification and moderator/admin
+  approval before they can log in.
+- **Job board** — alumni can post openings with an optional cover image; posts are searchable
+  and show the poster's name and avatar.
+- **Events** — cover image, public/private visibility, full-text search, capacity + waitlist,
+  CSV export of registrants, and either in-app RSVP or a link to an external registration form
+  (e.g. Google Forms). A dedicated crawler-friendly share endpoint gives every event proper
+  Open Graph/Twitter Card previews when pasted into WhatsApp, Slack, LinkedIn, etc.
+- **Notices** — public notices are visible to anyone with the link; private notices are visible
+  only to approved, logged-in members. Pinning and importance levels (normal/important/urgent)
+  trigger in-app and email notifications.
+- **Alumni Business Directory** — members can list a business with a logo, category, and
+  contact details.
+- **Committee / leadership page** — current committee plus full historical terms. Assigning
+  someone to a designated leadership position (President, Secretary, Organizing Secretary)
+  automatically grants them Admin access.
+- **Admin console** — institution branding (logo, theme color, homepage hero tagline/gallery),
+  taxonomy management (departments/programs/batches/blood groups), user approval queue, audit
+  log, and content moderation for every section above.
+- **Bulk CSV import** for onboarding an institution's existing alumni/student records without
+  making everyone self-register.
+- **PWA** — installable, works offline for previously-visited pages.
+- **Pluggable storage** — local disk or S3-compatible object storage (AWS S3, DigitalOcean
+  Spaces, MinIO, Cloudflare R2), switchable with one config value and a provided migration tool.
+
+## Tech stack
+
+| Layer | Choice |
+|---|---|
+| Backend | Go 1.25, [chi](https://github.com/go-chi/chi) router, [sqlx](https://github.com/jmoiron/sqlx) |
+| Database | SQLite via [modernc.org/sqlite](https://gitlab.com/cznic/sqlite) (pure Go, no cgo) with FTS5 full-text search, WAL mode |
+| Frontend | React 19, TypeScript, Vite, Tailwind CSS v4, React Router |
+| Auth | Session cookies, bcrypt password hashing, OTP email verification |
+| Storage | Local filesystem or S3 (`aws-sdk-go-v2`), selectable via env var |
+| Deployment | `go:embed` bundles the built frontend into one binary — copy, run, done |
+
+## Quick start
+
+Requires Go 1.25+ and Node 20+.
+
+```bash
+git clone https://github.com/eshafik/alumni-portal.git
+cd alumni-portal
+
+# Backend
 cp .env.example .env
 go run ./cmd/server
-```
 
-Frontend (separate terminal, proxies `/api`, `/share`, `/files` to `:8080`):
-
-```
+# Frontend (separate terminal — proxies /api, /share, /files to :8080)
 cd web
 npm install
 npm run dev
 ```
 
-First run auto-seeds one institution and, if `SUPERADMIN_EMAIL`/`SUPERADMIN_PASSWORD` are set,
-the initial SuperAdmin account — the only way into the admin UI, since there's no public
-"become admin" endpoint. Log in with those credentials, then create departments/programs/
-batches (or use `alumni-import` to bulk-load them, see below) so signups have somewhere to go.
+Open `http://localhost:5173`. The first run auto-creates one institution row. Set
+`SUPERADMIN_EMAIL`/`SUPERADMIN_PASSWORD` in `.env` before first boot to also bootstrap the
+initial SuperAdmin account — there's no public "become admin" endpoint, so this is the only way
+in. Log in with those credentials, then add at least one department/program/batch (Admin →
+Manage Dropdowns) so new signups have somewhere to attach.
 
-Without `SMTP_HOST` set, outgoing emails (OTP codes, approvals, notices) are logged to stdout
-instead of sent — check the server log for the verification code during local signup testing.
+Without `SMTP_HOST` set, outgoing email (OTP codes, approval notices) is logged to the server
+console instead of sent — check the terminal for the verification code while testing signup
+locally.
 
-## Bulk importing existing alumni/students
+### Seeding demo data
 
+To populate the portal with realistic demo content (alumni, students, admins, jobs, notices,
+events, committee history) for local testing:
+
+```bash
+go run ./cmd/seed
 ```
+
+Every seeded account shares one password, printed at the end of the run (override with
+`-password`). Safe to re-run — it tops up existing data rather than duplicating it.
+
+### Bulk importing real alumni/student records
+
+```bash
 go run ./cmd/import -file alumni.csv
 ```
 
-CSV columns (header required): `fullName,email,phone,accountType,department,program,batchStartYear,batchEndYear,batchLabel,graduationYear`.
-`accountType` is `alumni` or `student`. Missing departments/programs/batches are created
-automatically. Imported accounts get a random password — instruct users to use "forgot
+CSV columns (header row required): `fullName,email,phone,accountType,department,program,batchStartYear,batchEndYear,batchLabel,graduationYear,bloodGroup`.
+`accountType` is `alumni` or `student`. Missing departments/programs/batches/blood groups are
+created automatically. Imported accounts get a random password — instruct users to use "forgot
 password" on first login.
 
-## Build & deploy (local build, scp ship, nginx serve)
-
-No CI, no on-server build. Everything is built on your machine and shipped as a binary.
+## Project structure
 
 ```
+cmd/
+  server/           entrypoint — wires routes, middleware, and starts the HTTP server
+  seed/              demo data generator
+  import/            CSV bulk-import tool
+  migrate-storage/   local → S3 file migration tool
+internal/
+  auth/              session/password/OTP handling, RBAC middleware
+  db/                connection setup + migrations (sequential .sql files, auto-applied)
+  handlers/          one file per resource (alumni, events, jobs, notices, committees, ...)
+  httpx/             shared request/response helpers, pagination
+  models/            database row structs
+  storage/           local/S3 driver abstraction
+web/
+  src/routes/        public/, protected/, and admin/ route components
+  src/components/    shared UI primitives and layout shells
+  src/api/           typed fetch wrappers per resource
+  embed.go           go:embed directive that bundles web/dist into the server binary
+```
+
+## Configuration
+
+All configuration is environment variables, loaded from `.env` automatically on startup (see
+`.env.example` for the full list with comments). Key ones:
+
+| Variable | Purpose |
+|---|---|
+| `DB_PATH` | SQLite file path |
+| `SESSION_SECRET` | Cookie signing secret — set a real random value in production |
+| `STORAGE_DRIVER` | `local` or `s3` |
+| `SUPERADMIN_EMAIL` / `SUPERADMIN_PASSWORD` | First-boot bootstrap credentials |
+| `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASS` | Outgoing email — leave `SMTP_HOST` empty to log emails instead of sending |
+| `PUBLIC_BASE_URL` | Used to build absolute links in emails and social share previews |
+
+## Deployment
+
+No CI, no on-server build — everything is built on your machine and shipped as a binary.
+
+```bash
 ./build.sh                              # builds web/dist + dist/alumni-portal (linux/amd64)
 SERVER_HOST=user@your-vps ./deploy/deploy.sh
 ```
 
 One-time server setup (run once on a fresh VPS):
 
-```
+```bash
 scp deploy/*.sh deploy/*.service deploy/*.timer deploy/nginx.conf user@your-vps:/tmp/
 ssh user@your-vps 'sudo mkdir -p /opt/alumni-portal && sudo mv /tmp/*.sh /tmp/*.service /tmp/*.timer /opt/alumni-portal/ && sudo bash /opt/alumni-portal/setup-server.sh'
 ```
@@ -58,59 +155,58 @@ ssh user@your-vps 'sudo mkdir -p /opt/alumni-portal && sudo mv /tmp/*.sh /tmp/*.
 Then edit `/opt/alumni-portal/.env` on the server (secrets, SMTP, SuperAdmin credentials),
 install `deploy/nginx.conf` (see comments in that file for certbot TLS setup), and:
 
-```
+```bash
 ssh user@your-vps 'sudo systemctl start alumni-portal'
 ```
 
-Every subsequent deploy is just `./build.sh && SERVER_HOST=... ./deploy/deploy.sh` — binary
-swap + `systemctl restart`, nothing else touches the server. Roll back with
-`./deploy/rollback.sh`.
+Every subsequent deploy is `./build.sh && SERVER_HOST=... ./deploy/deploy.sh` — binary swap +
+`systemctl restart`, nothing else touches the server. Roll back with `./deploy/rollback.sh`.
 
-## Backups
+### Backups
 
 `deploy/backup.sh` runs `sqlite3 .backup` (safe against a live WAL database) nightly via the
-included systemd timer, retaining 14 days in `/var/backups/alumni-portal`. Install it during
-server setup:
+included systemd timer, retaining 14 days in `/var/backups/alumni-portal`:
 
-```
+```bash
 ssh user@your-vps 'sudo cp /opt/alumni-portal/alumni-portal-backup.* /etc/systemd/system/ && sudo systemctl enable --now alumni-portal-backup.timer'
 ```
 
-If `STORAGE_DRIVER=local`, also back up `/var/lib/alumni-portal/uploads` (e.g. periodic
-`rsync` offsite) — if `STORAGE_DRIVER=s3`, the bucket is already durable and needs no separate
-backup here.
+If `STORAGE_DRIVER=local`, also back up `/var/lib/alumni-portal/uploads` (e.g. periodic offsite
+`rsync`); with `STORAGE_DRIVER=s3` the bucket is already durable.
 
-**Restore**: stop the service, copy a backup file over `/var/lib/alumni-portal/data.db`
-(remove any `-wal`/`-shm` sidecar files first), restart.
+**Restore**: stop the service, copy a backup file over `/var/lib/alumni-portal/data.db` (remove
+any `-wal`/`-shm` sidecar files first), restart.
 
 **Moving to a new server**: copy `/var/lib/alumni-portal/` (or just `data.db` + `uploads/` if
-using S3) and `/opt/alumni-portal/.env` to the new host, run `setup-server.sh` there, deploy
-the binary, done.
+using S3) and `/opt/alumni-portal/.env` to the new host, run `setup-server.sh`, deploy the
+binary, done.
 
-## Storage: switching local → S3
+### Switching storage from local disk to S3
 
-Attachments are referenced in the DB only by their `storage_key` — never a full URL — so every
-existing job image/event cover/avatar/logo/gallery image keeps working automatically once the
-files are physically moved and `STORAGE_DRIVER` is flipped. No DB migration needed either way.
+Attachments are referenced in the database only by their storage key, never a full URL, so
+every existing image keeps working once files are moved and `STORAGE_DRIVER` is flipped — no
+database migration needed.
 
-1. Add `S3_BUCKET`/`S3_REGION`/`S3_ACCESS_KEY`/`S3_SECRET_KEY` (and `S3_ENDPOINT` for non-AWS
-   S3-compatible providers, e.g. DigitalOcean Spaces or MinIO) to `.env` — keep
-   `STORAGE_DRIVER=local` for now.
-2. Run the migration command (built by `build.sh`, uses the same `.env` as the server, no
-   separate credentials):
+1. Add `S3_BUCKET`/`S3_REGION`/`S3_ACCESS_KEY`/`S3_SECRET_KEY` (and `S3_ENDPOINT` for
+   non-AWS providers) to `.env`, keeping `STORAGE_DRIVER=local` for now.
+2. Run the migration tool (idempotent — safe to re-run if interrupted):
+   ```bash
+   ./dist/alumni-migrate-storage -dry-run   # preview
+   ./dist/alumni-migrate-storage            # upload
    ```
-   ./dist/alumni-migrate-storage -dry-run   # preview what would move
-   ./dist/alumni-migrate-storage            # actually upload
-   ```
-   It's idempotent/resumable — safe to re-run if interrupted, already-uploaded files are
-   skipped. On success it prints the exact next steps.
-3. Set `STORAGE_DRIVER=s3` in `.env` and restart (`systemctl restart alumni-portal` — binary
-   swap, no rebuild).
-4. Spot-check a few known image URLs load, then it's safe to delete `STORAGE_LOCAL_PATH`.
+3. Set `STORAGE_DRIVER=s3` and restart.
+4. Spot-check a few image URLs load, then it's safe to delete the old local upload directory.
 
-**Serving performance**: local mode sets `Cache-Control: public, max-age=31536000, immutable`
-on `/files/*` (safe — storage keys are opaque UUIDs minted once, content never changes for a
-given key). In S3 mode, `Driver.URL()` returns a direct bucket URL, so the browser fetches
-straight from S3/your CDN instead of proxying through the Go process at all — for production
-traffic, pairing the bucket with a CDN (CloudFront, Cloudflare, or the provider's built-in CDN
-for Spaces/R2) is the recommended next step, though that's an infra choice outside this repo.
+## Contributing
+
+Issues and pull requests are welcome. For anything beyond a small fix, please open an issue
+first to discuss the approach. Before submitting a PR:
+
+```bash
+go build ./... && go vet ./...
+cd web && npx tsc -b --noEmit && npx vite build
+```
+
+## License
+
+[MIT](LICENSE)
