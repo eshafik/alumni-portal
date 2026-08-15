@@ -11,6 +11,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/jmoiron/sqlx"
 
+	"alumni-portal/internal/audit"
 	"alumni-portal/internal/auth"
 	"alumni-portal/internal/httpx"
 	"alumni-portal/internal/models"
@@ -47,9 +48,8 @@ func (h *EventHandler) List(w http.ResponseWriter, r *http.Request) {
 		where += " AND is_public = 1"
 	}
 	if q != "" {
-		where += " AND (title LIKE ? OR description LIKE ? OR venue LIKE ?)"
-		like := "%" + q + "%"
-		args = append(args, like, like, like)
+		where += " AND id IN (SELECT rowid FROM events_fts WHERE events_fts MATCH ?)"
+		args = append(args, sanitizeFTSQuery(q))
 	}
 
 	var total int
@@ -173,10 +173,13 @@ func (h *EventHandler) Create(w http.ResponseWriter, r *http.Request) {
 	id, _ := res.LastInsertId()
 	var event models.Event
 	_ = h.DB.Get(&event, `SELECT * FROM events WHERE id = ?`, id)
+	syncEventFTS(h.DB, id)
+	audit.Log(h.DB, u.InstitutionID, &u.ID, "event.created", "event", &id, nil, event)
 	httpx.JSON(w, http.StatusCreated, event)
 }
 
 func (h *EventHandler) Update(w http.ResponseWriter, r *http.Request) {
+	actor := auth.CurrentUser(r)
 	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
 		httpx.Error(w, http.StatusBadRequest, "invalid id")
@@ -194,6 +197,9 @@ func (h *EventHandler) Update(w http.ResponseWriter, r *http.Request) {
 	registrationURL := normalizeOptionalURL(req.RegistrationURL)
 	responseURL := normalizeOptionalURL(req.ResponseURL)
 
+	var before models.Event
+	_ = h.DB.Get(&before, `SELECT * FROM events WHERE id = ?`, id)
+
 	_, err = h.DB.Exec(`UPDATE events SET title = ?, description = ?, cover_attachment_id = ?, start_at = ?,
 		end_at = ?, venue = ?, online_url = ?, registration_deadline = ?, capacity = ?, is_public = ?,
 		registration_url = ?, response_url = ?, updated_at = datetime('now')
@@ -206,6 +212,8 @@ func (h *EventHandler) Update(w http.ResponseWriter, r *http.Request) {
 		httpx.Error(w, http.StatusInternalServerError, "update failed")
 		return
 	}
+	syncEventFTS(h.DB, id)
+	audit.Log(h.DB, actor.InstitutionID, &actor.ID, "event.updated", "event", &id, before, req)
 	httpx.JSON(w, http.StatusOK, map[string]string{"message": "event updated"})
 }
 
@@ -223,6 +231,7 @@ func normalizeOptionalURL(v *string) *string {
 }
 
 func (h *EventHandler) Delete(w http.ResponseWriter, r *http.Request) {
+	actor := auth.CurrentUser(r)
 	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
 		httpx.Error(w, http.StatusBadRequest, "invalid id")
@@ -233,6 +242,7 @@ func (h *EventHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		httpx.Error(w, http.StatusInternalServerError, "cancel failed")
 		return
 	}
+	audit.Log(h.DB, actor.InstitutionID, &actor.ID, "event.cancelled", "event", &id, nil, nil)
 	httpx.JSON(w, http.StatusOK, map[string]string{"message": "event cancelled"})
 }
 

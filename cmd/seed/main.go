@@ -103,7 +103,7 @@ func main() {
 		if u != 0 {
 			gradYear := batch.endYear
 			_, _ = dbx.Exec(`INSERT INTO alumni_profiles (user_id, program_id, batch_id, graduation_year, current_location, current_designation, avatar_attachment_id, privacy_email, privacy_phone, privacy_whatsapp, privacy_location, privacy_company)
-				VALUES (?, ?, ?, ?, ?, ?, ?, 0, 0, 0, 0, 0)`,
+				VALUES (?, ?, ?, ?, ?, ?, ?, 1, 1, 1, 1, 1)`,
 				u, program.id, batch.id, gradYear, a.location, a.designation, avatarID)
 			_, _ = dbx.Exec(`INSERT INTO alumni_fts (rowid, full_name, bio, current_location, current_designation, company_names, skill_names)
 				VALUES (?, ?, '', ?, ?, '', '')`, u, a.name, a.location, a.designation)
@@ -140,7 +140,7 @@ func main() {
 		program := dept.programs[0]
 		batch := program.batches[0]
 		_, _ = dbx.Exec(`INSERT INTO alumni_profiles (user_id, program_id, batch_id, graduation_year, current_location, current_designation, avatar_attachment_id, privacy_email, privacy_phone, privacy_whatsapp, privacy_location, privacy_company)
-			VALUES (?, ?, ?, ?, '', '', ?, 0, 0, 0, 0, 0)`, pendingAlumni, program.id, batch.id, batch.endYear, avatarID)
+			VALUES (?, ?, ?, ?, '', '', ?, 1, 1, 1, 1, 1)`, pendingAlumni, program.id, batch.id, batch.endYear, avatarID)
 		created = append(created, describe("Alumni (pending approval)", pendingAlumni))
 	}
 	pendingStudent := mustSeedUser(dbx, institutionID, passwordHash, seedUser{
@@ -429,7 +429,7 @@ func seedBulkAlumni(dbx *sqlx.DB, institutionID int64, passwordHash string, dept
 		designation := seedDesignations[i%len(seedDesignations)] + " at " + seedCompanies[i%len(seedCompanies)]
 		location := seedLocations[i%len(seedLocations)]
 		_, _ = tx.Exec(`INSERT INTO alumni_profiles (user_id, program_id, batch_id, graduation_year, current_location, current_designation, avatar_attachment_id, privacy_email, privacy_phone, privacy_whatsapp, privacy_location, privacy_company)
-			VALUES (?, ?, ?, ?, ?, ?, ?, 0, 0, 0, 0, 0)`,
+			VALUES (?, ?, ?, ?, ?, ?, ?, 1, 1, 1, 1, 1)`,
 			userID, program.id, batch.id, batch.endYear, location, designation, avatarID)
 		_, _ = tx.Exec(`INSERT INTO alumni_fts (rowid, full_name, bio, current_location, current_designation, company_names, skill_names)
 			VALUES (?, ?, '', ?, ?, '', '')`, userID, name, location, designation)

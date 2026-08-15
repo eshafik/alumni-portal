@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import { AuthProvider } from './hooks/useAuth'
 import { InstitutionProvider } from './hooks/useInstitution'
+import { ConfirmProvider } from './hooks/useConfirm'
 import { Shell } from './components/layout/Shell'
 import { AdminShell } from './components/layout/AdminShell'
 import { RequireApproved, RequireRole } from './components/shared/RoleGate'
@@ -17,6 +18,7 @@ import StudentsList from './routes/public/StudentsList'
 import EventsList from './routes/public/EventsList'
 import EventDetail from './routes/public/EventDetail'
 import NoticesList from './routes/public/NoticesList'
+import NoticeDetail from './routes/public/NoticeDetail'
 import JobsList from './routes/public/JobsList'
 import JobDetail from './routes/public/JobDetail'
 import BusinessesList from './routes/public/BusinessesList'
@@ -34,12 +36,15 @@ import AdminTaxonomy from './routes/admin/AdminTaxonomy'
 import AdminNotices from './routes/admin/AdminNotices'
 import AdminEvents from './routes/admin/AdminEvents'
 import AdminCommittee from './routes/admin/AdminCommittee'
+import AdminUsers from './routes/admin/AdminUsers'
+import AdminAuditLog from './routes/admin/AdminAuditLog'
 
 export default function App() {
   return (
     <BrowserRouter>
       <InstitutionProvider>
         <AuthProvider>
+        <ConfirmProvider>
           <Routes>
             <Route element={<Shell />}>
               <Route index element={<Home />} />
@@ -53,6 +58,7 @@ export default function App() {
               <Route path="events" element={<EventsList />} />
               <Route path="events/:slug" element={<EventDetail />} />
               <Route path="notices" element={<NoticesList />} />
+              <Route path="notices/:id" element={<NoticeDetail />} />
               <Route path="jobs" element={<JobsList />} />
               <Route path="jobs/:id" element={<JobDetail />} />
               <Route path="businesses" element={<BusinessesList />} />
@@ -66,6 +72,7 @@ export default function App() {
                 <Route path="profile" element={<Profile />} />
                 <Route path="complete-profile" element={<CompleteProfile />} />
                 <Route path="jobs/new" element={<JobCreate />} />
+                <Route path="jobs/:id/edit" element={<JobCreate />} />
                 <Route path="businesses/new" element={<BusinessCreate />} />
               </Route>
 
@@ -78,6 +85,8 @@ export default function App() {
                     <Route path="admin/notices" element={<AdminNotices />} />
                     <Route path="admin/events" element={<AdminEvents />} />
                     <Route path="admin/committee" element={<AdminCommittee />} />
+                    <Route path="admin/users" element={<AdminUsers />} />
+                    <Route path="admin/activity" element={<AdminAuditLog />} />
                   </Route>
                 </Route>
               </Route>
@@ -85,6 +94,7 @@ export default function App() {
               <Route path="*" element={<NotFound />} />
             </Route>
           </Routes>
+        </ConfirmProvider>
         </AuthProvider>
       </InstitutionProvider>
     </BrowserRouter>

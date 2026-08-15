@@ -6,6 +6,7 @@ import type { Event } from '../../types/api'
 import { Button, Card, Input, Textarea, Badge, Loading, Pagination } from '../../components/shared/ui'
 import { ImageUploadField } from '../../components/shared/ImageUploadField'
 import { useDebounce } from '../../hooks/useDebounce'
+import { useConfirm } from '../../hooks/useConfirm'
 
 const emptyForm = {
   title: '',
@@ -23,6 +24,7 @@ const emptyForm = {
 }
 
 export default function AdminEvents() {
+  const confirm = useConfirm()
   const [q, setQ] = useState('')
   const debouncedQ = useDebounce(q, 300)
   const [page, setPage] = useState(1)
@@ -113,7 +115,8 @@ export default function AdminEvents() {
   }
 
   const remove = async (ev: Event) => {
-    if (!window.confirm(`Cancel event "${ev.title}"?`)) return
+    const ok = await confirm({ description: `Cancel event "${ev.title}"?`, confirmLabel: 'Cancel event', danger: true })
+    if (!ok) return
     await adminEventsApi.delete(ev.id)
     reload()
   }

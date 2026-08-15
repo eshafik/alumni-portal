@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { UserCheck, UserX, Mail, Phone } from 'lucide-react'
+import { UserCheck, UserX, Mail, Phone, Loader2 } from 'lucide-react'
 import { adminApi, type PendingRegistration } from '../../api/admin'
 import { ApiError } from '../../api/client'
 import { useAuth } from '../../hooks/useAuth'
@@ -27,6 +27,7 @@ export default function AdminDashboard() {
   const [error, setError] = useState('')
   const [rejectingId, setRejectingId] = useState<number | null>(null)
   const [reason, setReason] = useState('')
+  const [processingId, setProcessingId] = useState<number | null>(null)
 
   const load = () => {
     setLoading(true)
@@ -42,16 +43,20 @@ export default function AdminDashboard() {
 
   const approve = async (userId: number) => {
     setError('')
+    setProcessingId(userId)
     try {
       await adminApi.approve(userId)
       load()
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Approve failed')
+    } finally {
+      setProcessingId(null)
     }
   }
 
   const reject = async (userId: number) => {
     setError('')
+    setProcessingId(userId)
     try {
       await adminApi.reject(userId, reason)
       setRejectingId(null)
@@ -59,6 +64,8 @@ export default function AdminDashboard() {
       load()
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Reject failed')
+    } finally {
+      setProcessingId(null)
     }
   }
 
@@ -127,11 +134,11 @@ export default function AdminDashboard() {
                       </div>
                     </div>
                     <div className="flex gap-2 shrink-0">
-                      <Button onClick={() => approve(p.userId)}>
-                        <UserCheck size={15} className="mr-1.5" /> Approve
+                      <Button onClick={() => approve(p.userId)} disabled={processingId === p.userId}>
+                        {processingId === p.userId ? <Loader2 size={15} className="mr-1.5 animate-spin" /> : <UserCheck size={15} className="mr-1.5" />} Approve
                       </Button>
                       {tab === 'pending' && (
-                        <Button variant="danger" onClick={() => setRejectingId(p.userId)}>
+                        <Button variant="danger" onClick={() => setRejectingId(p.userId)} disabled={processingId === p.userId}>
                           <UserX size={15} className="mr-1.5" /> Reject
                         </Button>
                       )}
@@ -146,10 +153,10 @@ export default function AdminDashboard() {
                         onChange={(e) => setReason(e.target.value)}
                         autoFocus
                       />
-                      <Button variant="danger" onClick={() => reject(p.userId)}>
-                        Confirm reject
+                      <Button variant="danger" onClick={() => reject(p.userId)} disabled={processingId === p.userId}>
+                        {processingId === p.userId && <Loader2 size={14} className="mr-1.5 animate-spin" />} Confirm reject
                       </Button>
-                      <Button variant="ghost" onClick={() => setRejectingId(null)}>
+                      <Button variant="ghost" onClick={() => setRejectingId(null)} disabled={processingId === p.userId}>
                         Cancel
                       </Button>
                     </div>

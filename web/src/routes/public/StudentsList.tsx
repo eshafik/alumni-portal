@@ -4,10 +4,13 @@ import { api } from '../../api/client'
 import { configApi } from '../../api/directory'
 import type { PagedResult, StudentDirectoryRow, Department, Batch, BloodGroup } from '../../types/api'
 import { Card, Input, Select, Avatar, EmptyState, CardGridSkeleton } from '../../components/shared/ui'
+import { FlipModal } from '../../components/shared/FlipModal'
+import { StudentDetailCard } from '../../components/shared/StudentDetailCard'
 import { useDebounce } from '../../hooks/useDebounce'
 import { useInfiniteList } from '../../hooks/useInfiniteList'
 
 export default function StudentsList() {
+  const [selected, setSelected] = useState<StudentDirectoryRow | null>(null)
   const [q, setQ] = useState('')
   const debouncedQ = useDebounce(q, 300)
   const [departmentId, setDepartmentId] = useState('')
@@ -85,18 +88,20 @@ export default function StudentsList() {
         <>
           <div className={`grid sm:grid-cols-2 lg:grid-cols-3 gap-4 transition-opacity ${loading ? 'opacity-50 pointer-events-none' : ''}`}>
             {rows.map((r) => (
-              <Card key={r.userId}>
-                <div className="flex items-center gap-3">
-                  <Avatar name={r.fullName} url={r.avatarUrl} />
-                  <div className="min-w-0">
-                    <p className="font-medium text-slate-900 truncate">{r.fullName}</p>
-                    <p className="text-xs text-slate-400 truncate">
-                      {r.departmentName} · {r.batchLabel}
-                      {r.bloodGroupName && ` · ${r.bloodGroupName}`}
-                    </p>
+              <button key={r.userId} onClick={() => setSelected(r)} className="text-left">
+                <Card className="hover:shadow-md hover:border-slate-300 transition-all">
+                  <div className="flex items-center gap-3">
+                    <Avatar name={r.fullName} url={r.avatarUrl} />
+                    <div className="min-w-0">
+                      <p className="font-medium text-slate-900 truncate">{r.fullName}</p>
+                      <p className="text-xs text-slate-400 truncate">
+                        {r.departmentName} · {r.batchLabel}
+                        {r.bloodGroupName && ` · ${r.bloodGroupName}`}
+                      </p>
+                    </div>
                   </div>
-                </div>
-              </Card>
+                </Card>
+              </button>
             ))}
           </div>
 
@@ -114,6 +119,10 @@ export default function StudentsList() {
           )}
         </>
       )}
+
+      <FlipModal open={selected !== null} onClose={() => setSelected(null)}>
+        {selected && <StudentDetailCard student={selected} />}
+      </FlipModal>
     </div>
   )
 }

@@ -2,7 +2,7 @@ import { api } from './client'
 import type { Institution, Department, Program, Batch, BloodGroup, AlumniDirectoryRow, PagedResult } from '../types/api'
 
 export const institutionApi = {
-  get: () => api.get<{ institution: Institution; stats: Record<string, number> }>('/api/institution'),
+  get: () => api.get<{ institution: Institution; stats: Record<string, number>; timezone: string }>('/api/institution'),
 }
 
 export const configApi = {

@@ -54,9 +54,8 @@ func (h *JobHandler) List(w http.ResponseWriter, r *http.Request) {
 	where := "WHERE status = 'published'"
 	args := []any{}
 	if q != "" {
-		where += " AND (title LIKE ? OR company_name LIKE ? OR location LIKE ?)"
-		like := "%" + q + "%"
-		args = append(args, like, like, like)
+		where += " AND id IN (SELECT rowid FROM job_posts_fts WHERE job_posts_fts MATCH ?)"
+		args = append(args, sanitizeFTSQuery(q))
 	}
 
 	var total int
@@ -128,9 +127,73 @@ func (h *JobHandler) Create(w http.ResponseWriter, r *http.Request) {
 	id, _ := res.LastInsertId()
 	var job models.JobPost
 	_ = h.DB.Get(&job, `SELECT * FROM job_posts WHERE id = ?`, id)
+	syncJobFTS(h.DB, id)
 
 	h.notifySubscribers(job)
 	httpx.JSON(w, http.StatusCreated, job)
+}
+
+// Update is author-only (or Admin/SuperAdmin, for moderation) — enforced here rather than at
+// the route level since ownership can only be determined after loading the target row.
+func (h *JobHandler) Update(w http.ResponseWriter, r *http.Request) {
+	actor := auth.CurrentUser(r)
+	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	if err != nil {
+		httpx.Error(w, http.StatusBadRequest, "invalid id")
+		return
+	}
+	var existing models.JobPost
+	if err := h.DB.Get(&existing, `SELECT * FROM job_posts WHERE id = ?`, id); err != nil {
+		httpx.Error(w, http.StatusNotFound, "job not found")
+		return
+	}
+	if existing.PostedByUserID != actor.ID && actor.RoleID != models.RoleAdmin && actor.RoleID != models.RoleSuperAdmin {
+		httpx.Error(w, http.StatusForbidden, "only the poster or an admin can edit this job")
+		return
+	}
+	var req createJobRequest
+	if err := httpx.DecodeJSON(r, &req); err != nil || req.Title == "" {
+		httpx.Error(w, http.StatusBadRequest, "title is required")
+		return
+	}
+	if _, err := h.DB.Exec(`UPDATE job_posts SET title = ?, company_name = ?, location = ?, employment_type = ?,
+		description = ?, salary = ?, apply_url = ?, apply_email = ?, image_attachment_id = ?, deadline = ?, updated_at = datetime('now')
+		WHERE id = ?`,
+		req.Title, req.CompanyName, req.Location, req.EmploymentType, req.Description, req.Salary,
+		req.ApplyURL, req.ApplyEmail, req.ImageAttachmentID, req.Deadline, id); err != nil {
+		httpx.Error(w, http.StatusInternalServerError, "update failed")
+		return
+	}
+	syncJobFTS(h.DB, id)
+	var job models.JobPost
+	_ = h.DB.Get(&job, `SELECT * FROM job_posts WHERE id = ?`, id)
+	httpx.JSON(w, http.StatusOK, h.withImageURL(job))
+}
+
+// Delete is author-only (or Admin/SuperAdmin). Hard-deletes, same as notices — job posts have
+// no downstream references (unlike events' registrations) that would need history preserved.
+func (h *JobHandler) Delete(w http.ResponseWriter, r *http.Request) {
+	actor := auth.CurrentUser(r)
+	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	if err != nil {
+		httpx.Error(w, http.StatusBadRequest, "invalid id")
+		return
+	}
+	var existing models.JobPost
+	if err := h.DB.Get(&existing, `SELECT * FROM job_posts WHERE id = ?`, id); err != nil {
+		httpx.Error(w, http.StatusNotFound, "job not found")
+		return
+	}
+	if existing.PostedByUserID != actor.ID && actor.RoleID != models.RoleAdmin && actor.RoleID != models.RoleSuperAdmin {
+		httpx.Error(w, http.StatusForbidden, "only the poster or an admin can delete this job")
+		return
+	}
+	if _, err := h.DB.Exec(`DELETE FROM job_posts WHERE id = ?`, id); err != nil {
+		httpx.Error(w, http.StatusInternalServerError, "delete failed")
+		return
+	}
+	_, _ = h.DB.Exec(`DELETE FROM job_posts_fts WHERE rowid = ?`, id)
+	httpx.JSON(w, http.StatusOK, map[string]string{"message": "job deleted"})
 }
 
 func (h *JobHandler) notifySubscribers(job models.JobPost) {

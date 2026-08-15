@@ -90,7 +90,7 @@ export default function EventDetail() {
 
           <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5 mt-3 text-sm text-slate-500">
             <span className="flex items-center gap-1.5">
-              <CalendarDays size={14} /> {new Date(event.startAt).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}
+              <CalendarDays size={14} /> {new Date(event.startAt).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short', hour12: true })}
             </span>
             {event.venue && (
               <span className="flex items-center gap-1.5">
@@ -99,7 +99,7 @@ export default function EventDetail() {
             )}
             {event.registrationDeadline && (
               <span className="flex items-center gap-1.5">
-                <Clock size={14} /> Register by {new Date(event.registrationDeadline).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}
+                <Clock size={14} /> Register by {new Date(event.registrationDeadline).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short', hour12: true })}
               </span>
             )}
             {!event.registrationUrl && event.capacity !== undefined && event.capacity !== null && (

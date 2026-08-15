@@ -1,13 +1,15 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
 import { Search, Loader2 } from 'lucide-react'
 import { alumniApi, configApi } from '../../api/directory'
 import type { Department, Batch, BloodGroup } from '../../types/api'
 import { Card, Input, Select, Avatar, EmptyState, CardGridSkeleton } from '../../components/shared/ui'
+import { FlipModal } from '../../components/shared/FlipModal'
+import { AlumniDetailCard } from '../../components/shared/AlumniDetailCard'
 import { useDebounce } from '../../hooks/useDebounce'
 import { useInfiniteList } from '../../hooks/useInfiniteList'
 
 export default function Directory() {
+  const [selectedId, setSelectedId] = useState<number | null>(null)
   const [q, setQ] = useState('')
   const debouncedQ = useDebounce(q, 300)
   const [departmentId, setDepartmentId] = useState('')
@@ -77,7 +79,7 @@ export default function Directory() {
         <>
           <div className={`grid sm:grid-cols-2 lg:grid-cols-3 gap-4 transition-opacity ${loading ? 'opacity-50 pointer-events-none' : ''}`}>
             {rows.map((r) => (
-              <Link key={r.userId} to={`/directory/${r.userId}`}>
+              <button key={r.userId} onClick={() => setSelectedId(r.userId)} className="text-left">
                 <Card className="hover:shadow-md hover:border-slate-300 transition-all">
                   <div className="flex items-center gap-3">
                     <Avatar name={r.fullName} url={r.avatarUrl} />
@@ -94,7 +96,7 @@ export default function Directory() {
                     </div>
                   </div>
                 </Card>
-              </Link>
+              </button>
             ))}
           </div>
 
@@ -113,6 +115,10 @@ export default function Directory() {
           )}
         </>
       )}
+
+      <FlipModal open={selectedId !== null} onClose={() => setSelectedId(null)}>
+        {selectedId !== null && <AlumniDetailCard userId={selectedId} />}
+      </FlipModal>
     </div>
   )
 }

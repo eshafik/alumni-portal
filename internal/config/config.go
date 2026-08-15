@@ -30,6 +30,7 @@ type Config struct {
 	AppEnv             string
 	SuperAdminEmail    string
 	SuperAdminPassword string
+	Timezone           string
 }
 
 func Load() Config {
@@ -65,6 +66,7 @@ func Load() Config {
 		AppEnv:             getEnv("APP_ENV", "development"),
 		SuperAdminEmail:    getEnv("SUPERADMIN_EMAIL", ""),
 		SuperAdminPassword: getEnv("SUPERADMIN_PASSWORD", ""),
+		Timezone:           getEnv("TIMEZONE", "Asia/Dhaka"),
 	}
 
 	// Visible-at-a-glance confirmation of what the mailer will actually do — the single most

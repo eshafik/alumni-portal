@@ -1,12 +1,14 @@
 import { useEffect, useState } from 'react'
-import { Plus, X, UserPlus } from 'lucide-react'
+import { Plus, X, UserPlus, Loader2 } from 'lucide-react'
 import { committeesApi, adminCommitteesApi } from '../../api/content'
 import { adminApi } from '../../api/admin'
 import type { Committee, CommitteePositionWithMembers, User } from '../../types/api'
 import { Button, Card, Input, Select, Loading } from '../../components/shared/ui'
 import { useDebounce } from '../../hooks/useDebounce'
+import { useConfirm } from '../../hooks/useConfirm'
 
 export default function AdminCommittee() {
+  const confirm = useConfirm()
   const [committees, setCommittees] = useState<Committee[]>([])
   const [selectedId, setSelectedId] = useState<number | null>(null)
   const [committee, setCommittee] = useState<Committee | null>(null)
@@ -17,6 +19,8 @@ export default function AdminCommittee() {
   const [newTermStart, setNewTermStart] = useState('')
   const [newTermEnd, setNewTermEnd] = useState('')
   const [creatingTerm, setCreatingTerm] = useState(false)
+  const [addingPosition, setAddingPosition] = useState(false)
+  const [startingTerm, setStartingTerm] = useState(false)
 
   const reloadList = () => {
     committeesApi.list().then((list) => {
@@ -45,25 +49,41 @@ export default function AdminCommittee() {
 
   const addPosition = async () => {
     if (!newTitle.trim() || !committee) return
-    await adminCommitteesApi.createPosition(committee.id, newTitle.trim(), positions.length + 1)
-    setNewTitle('')
-    reloadCommittee()
+    setAddingPosition(true)
+    try {
+      await adminCommitteesApi.createPosition(committee.id, newTitle.trim(), positions.length + 1)
+      setNewTitle('')
+      reloadCommittee()
+    } finally {
+      setAddingPosition(false)
+    }
   }
 
   const startNewTerm = async () => {
     const start = Number(newTermStart)
     const end = Number(newTermEnd || start + 2)
     if (!start) return
-    if (!window.confirm(`Start a new term (${start}–${end})? This retires the current committee — its members and positions are preserved as history, but it will no longer show as "Current".`)) return
-    await adminCommitteesApi.create({ termStart: start, termEnd: end })
-    setNewTermStart('')
-    setNewTermEnd('')
-    setCreatingTerm(false)
-    reloadList()
+    const ok = await confirm({
+      title: 'Start a new term?',
+      description: `Term ${start}–${end}. This retires the current committee — its members and positions are preserved as history, but it will no longer show as "Current".`,
+      confirmLabel: 'Start term',
+    })
+    if (!ok) return
+    setStartingTerm(true)
+    try {
+      await adminCommitteesApi.create({ termStart: start, termEnd: end })
+      setNewTermStart('')
+      setNewTermEnd('')
+      setCreatingTerm(false)
+      reloadList()
+    } finally {
+      setStartingTerm(false)
+    }
   }
 
   const removeMember = async (positionId: number, userId: number) => {
-    if (!window.confirm('Remove this member from the position?')) return
+    const ok = await confirm({ description: 'Remove this member from the position?', confirmLabel: 'Remove', danger: true })
+    if (!ok) return
     await adminCommitteesApi.removeMember(positionId, userId)
     reloadCommittee()
   }
@@ -95,8 +115,8 @@ export default function AdminCommittee() {
               <span className="text-xs text-slate-500 block mb-1">Term end year (optional)</span>
               <Input type="number" value={newTermEnd} onChange={(e) => setNewTermEnd(e.target.value)} className="max-w-[120px]" />
             </div>
-            <Button onClick={startNewTerm} disabled={!newTermStart}>
-              Confirm
+            <Button onClick={startNewTerm} disabled={!newTermStart || startingTerm}>
+              {startingTerm && <Loader2 size={15} className="mr-1 animate-spin" />} Confirm
             </Button>
           </div>
         </Card>
@@ -158,8 +178,8 @@ export default function AdminCommittee() {
                 <p className="text-sm font-medium mb-2">Add a custom position</p>
                 <div className="flex gap-2">
                   <Input placeholder="Position title" value={newTitle} onChange={(e) => setNewTitle(e.target.value)} className="max-w-xs" />
-                  <Button onClick={addPosition} disabled={!newTitle.trim()}>
-                    <Plus size={15} className="mr-1" /> Add
+                  <Button onClick={addPosition} disabled={!newTitle.trim() || addingPosition}>
+                    {addingPosition ? <Loader2 size={15} className="mr-1 animate-spin" /> : <Plus size={15} className="mr-1" />} Add
                   </Button>
                 </div>
               </Card>
@@ -176,6 +196,7 @@ function MemberPicker({ positionId, onAdded }: { positionId: number; onAdded: ()
   const debouncedQ = useDebounce(q, 300)
   const [results, setResults] = useState<User[]>([])
   const [open, setOpen] = useState(false)
+  const [adding, setAdding] = useState(false)
 
   useEffect(() => {
     if (!debouncedQ.trim()) {
@@ -186,11 +207,16 @@ function MemberPicker({ positionId, onAdded }: { positionId: number; onAdded: ()
   }, [debouncedQ])
 
   const add = async (userId: number) => {
-    await adminCommitteesApi.addMember(positionId, userId)
-    setQ('')
-    setResults([])
-    setOpen(false)
-    onAdded()
+    setAdding(true)
+    try {
+      await adminCommitteesApi.addMember(positionId, userId)
+      setQ('')
+      setResults([])
+      setOpen(false)
+      onAdded()
+    } finally {
+      setAdding(false)
+    }
   }
 
   return (
@@ -204,7 +230,7 @@ function MemberPicker({ positionId, onAdded }: { positionId: number; onAdded: ()
             setOpen(true)
           }}
         />
-        <UserPlus size={16} className="text-slate-400 shrink-0" />
+        {adding ? <Loader2 size={16} className="text-slate-400 shrink-0 animate-spin" /> : <UserPlus size={16} className="text-slate-400 shrink-0" />}
       </div>
       {open && results.length > 0 && (
         <div className="absolute z-10 mt-1 w-full rounded-md border border-slate-200 bg-white shadow-md max-h-56 overflow-y-auto">

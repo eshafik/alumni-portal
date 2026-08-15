@@ -21,8 +21,10 @@ export const adminApi = {
   approve: (userId: number) => api.post(`/api/moderator/pending-registrations/${userId}/approve`),
   reject: (userId: number, reason: string) =>
     api.post(`/api/moderator/pending-registrations/${userId}/reject`, { reason }),
-  listUsers: (page = 1, q = '') => api.get<PagedResult<User>>(`/api/admin/users?page=${page}&q=${encodeURIComponent(q)}`),
-  updateUserRole: (userId: number, roleId: number) => api.put(`/api/admin/users/${userId}/role`, { roleId }),
+  listUsers: (page = 1, q = '', status = '', roleId = '') =>
+    api.get<PagedResult<User>>(`/api/admin/users?page=${page}&q=${encodeURIComponent(q)}&status=${status}&roleId=${roleId}`),
+  updateUserRole: (userId: number, roleId: number, moderatorScopeDepartmentId?: number | null, moderatorScopeBatchId?: number | null) =>
+    api.put(`/api/admin/users/${userId}/role`, { roleId, moderatorScopeDepartmentId: moderatorScopeDepartmentId ?? null, moderatorScopeBatchId: moderatorScopeBatchId ?? null }),
   updateUserStatus: (userId: number, status: string, reason = '') =>
     api.put(`/api/admin/users/${userId}/status`, { status, reason }),
   convertBatchToAlumni: (batchId: number) => api.post(`/api/admin/batches/${batchId}/convert-to-alumni`),
@@ -32,4 +34,20 @@ export const adminApi = {
   updateGalleryImage: (id: number, payload: { caption: string; sortOrder: number; isActive: boolean }) =>
     api.put(`/api/admin/home-gallery/${id}`, payload),
   deleteGalleryImage: (id: number) => api.delete(`/api/admin/home-gallery/${id}`),
+}
+
+export interface AuditLogEntry {
+  id: number
+  actorUserId?: number
+  actorName?: string
+  action: string
+  entityType: string
+  entityId?: number
+  beforeJson: string
+  afterJson: string
+  createdAt: string
+}
+
+export const auditApi = {
+  list: (page = 1, userId = '') => api.get<PagedResult<AuditLogEntry>>(`/api/admin/audit-logs?page=${page}&userId=${userId}`),
 }

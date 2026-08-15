@@ -7,6 +7,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/jmoiron/sqlx"
 
+	"alumni-portal/internal/audit"
 	"alumni-portal/internal/auth"
 	"alumni-portal/internal/httpx"
 	"alumni-portal/internal/models"
@@ -59,6 +60,7 @@ func (h *GalleryHandler) Create(w http.ResponseWriter, r *http.Request) {
 	id, _ := res.LastInsertId()
 	var img models.HomeGalleryImage
 	_ = h.DB.Get(&img, `SELECT * FROM home_gallery_images WHERE id = ?`, id)
+	audit.Log(h.DB, u.InstitutionID, &u.ID, "gallery_image.created", "gallery_image", &id, nil, img)
 	httpx.JSON(w, http.StatusCreated, galleryImageResponse{HomeGalleryImage: img, ImageURL: attachmentURL(h.DB, h.Storage, &img.AttachmentID)})
 }
 
@@ -69,6 +71,7 @@ type updateGalleryImageRequest struct {
 }
 
 func (h *GalleryHandler) Update(w http.ResponseWriter, r *http.Request) {
+	actor := auth.CurrentUser(r)
 	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
 		httpx.Error(w, http.StatusBadRequest, "invalid id")
@@ -84,10 +87,12 @@ func (h *GalleryHandler) Update(w http.ResponseWriter, r *http.Request) {
 		httpx.Error(w, http.StatusInternalServerError, "update failed")
 		return
 	}
+	audit.Log(h.DB, actor.InstitutionID, &actor.ID, "gallery_image.updated", "gallery_image", &id, nil, req)
 	httpx.JSON(w, http.StatusOK, map[string]string{"message": "updated"})
 }
 
 func (h *GalleryHandler) Delete(w http.ResponseWriter, r *http.Request) {
+	actor := auth.CurrentUser(r)
 	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
 		httpx.Error(w, http.StatusBadRequest, "invalid id")
@@ -97,5 +102,6 @@ func (h *GalleryHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		httpx.Error(w, http.StatusInternalServerError, "delete failed")
 		return
 	}
+	audit.Log(h.DB, actor.InstitutionID, &actor.ID, "gallery_image.deleted", "gallery_image", &id, nil, nil)
 	httpx.JSON(w, http.StatusOK, map[string]string{"message": "deleted"})
 }

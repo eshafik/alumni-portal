@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Pencil, Trash2, Check, X, Plus } from 'lucide-react'
+import { Pencil, Trash2, Check, X, Plus, Loader2 } from 'lucide-react'
 import { configApi } from '../../api/directory'
 import { taxonomyApi } from '../../api/taxonomy'
 import type { Department, Program, Batch, BloodGroup } from '../../types/api'
 import { Button, Card, Input, Select, Loading } from '../../components/shared/ui'
+import { useConfirm } from '../../hooks/useConfirm'
 
 type SectionKey = 'departments' | 'programs' | 'batches' | 'bloodGroups'
 
@@ -121,18 +122,25 @@ function EmptyRow({ colSpan, label }: { colSpan: number; label: string }) {
 // --- Departments ---
 
 function DepartmentPanel({ departments, onChange }: { departments: Department[]; onChange: () => void }) {
+  const confirm = useConfirm()
   const [name, setName] = useState('')
   const [code, setCode] = useState('')
   const [editingId, setEditingId] = useState<number | null>(null)
   const [editName, setEditName] = useState('')
   const [editCode, setEditCode] = useState('')
+  const [saving, setSaving] = useState(false)
 
   const create = async () => {
     if (!name.trim()) return
-    await taxonomyApi.createDepartment(name.trim(), code.trim())
-    setName('')
-    setCode('')
-    onChange()
+    setSaving(true)
+    try {
+      await taxonomyApi.createDepartment(name.trim(), code.trim())
+      setName('')
+      setCode('')
+      onChange()
+    } finally {
+      setSaving(false)
+    }
   }
   const startEdit = (d: Department) => {
     setEditingId(d.id)
@@ -146,7 +154,8 @@ function DepartmentPanel({ departments, onChange }: { departments: Department[];
     onChange()
   }
   const remove = async (d: Department) => {
-    if (!window.confirm(`Deactivate "${d.name}"? It will no longer appear in signup or filters.`)) return
+    const ok = await confirm({ description: `Deactivate "${d.name}"? It will no longer appear in signup or filters.`, confirmLabel: 'Deactivate', danger: true })
+    if (!ok) return
     await taxonomyApi.deleteDepartment(d.id)
     onChange()
   }
@@ -159,8 +168,8 @@ function DepartmentPanel({ departments, onChange }: { departments: Department[];
         <div className="flex flex-wrap gap-2">
           <Input placeholder="Department name" value={name} onChange={(e) => setName(e.target.value)} className="max-w-xs" />
           <Input placeholder="Code (optional)" value={code} onChange={(e) => setCode(e.target.value)} className="max-w-[120px]" />
-          <Button onClick={create} disabled={!name.trim()}>
-            <Plus size={15} className="mr-1" /> Add
+          <Button onClick={create} disabled={!name.trim() || saving}>
+            {saving ? <Loader2 size={15} className="mr-1 animate-spin" /> : <Plus size={15} className="mr-1" />} Add
           </Button>
         </div>
       }
@@ -214,12 +223,14 @@ function DepartmentPanel({ departments, onChange }: { departments: Department[];
 // --- Programs ---
 
 function ProgramPanel({ departments, programs, onChange }: { departments: Department[]; programs: Program[]; onChange: () => void }) {
+  const confirm = useConfirm()
   const [departmentId, setDepartmentId] = useState('')
   const [name, setName] = useState('')
   const [degreeLevel, setDegreeLevel] = useState('')
   const [editingId, setEditingId] = useState<number | null>(null)
   const [editName, setEditName] = useState('')
   const [editDegree, setEditDegree] = useState('')
+  const [saving, setSaving] = useState(false)
 
   const deptName = useMemo(() => {
     const map = new Map(departments.map((d) => [d.id, d.name]))
@@ -228,10 +239,15 @@ function ProgramPanel({ departments, programs, onChange }: { departments: Depart
 
   const create = async () => {
     if (!name.trim() || !departmentId) return
-    await taxonomyApi.createProgram(Number(departmentId), name.trim(), degreeLevel.trim())
-    setName('')
-    setDegreeLevel('')
-    onChange()
+    setSaving(true)
+    try {
+      await taxonomyApi.createProgram(Number(departmentId), name.trim(), degreeLevel.trim())
+      setName('')
+      setDegreeLevel('')
+      onChange()
+    } finally {
+      setSaving(false)
+    }
   }
   const startEdit = (p: Program) => {
     setEditingId(p.id)
@@ -245,7 +261,8 @@ function ProgramPanel({ departments, programs, onChange }: { departments: Depart
     onChange()
   }
   const remove = async (p: Program) => {
-    if (!window.confirm(`Deactivate "${p.name}"?`)) return
+    const ok = await confirm({ description: `Deactivate "${p.name}"?`, confirmLabel: 'Deactivate', danger: true })
+    if (!ok) return
     await taxonomyApi.deleteProgram(p.id)
     onChange()
   }
@@ -266,8 +283,8 @@ function ProgramPanel({ departments, programs, onChange }: { departments: Depart
           </Select>
           <Input placeholder="Program name" value={name} onChange={(e) => setName(e.target.value)} className="max-w-xs" />
           <Input placeholder="Degree level" value={degreeLevel} onChange={(e) => setDegreeLevel(e.target.value)} className="max-w-[140px]" />
-          <Button onClick={create} disabled={!name.trim() || !departmentId}>
-            <Plus size={15} className="mr-1" /> Add
+          <Button onClick={create} disabled={!name.trim() || !departmentId || saving}>
+            {saving ? <Loader2 size={15} className="mr-1 animate-spin" /> : <Plus size={15} className="mr-1" />} Add
           </Button>
         </div>
       }
@@ -324,6 +341,7 @@ function ProgramPanel({ departments, programs, onChange }: { departments: Depart
 // --- Batches ---
 
 function BatchPanel({ programs, batches, onChange }: { programs: Program[]; batches: Batch[]; onChange: () => void }) {
+  const confirm = useConfirm()
   const [programId, setProgramId] = useState('')
   const [startYear, setStartYear] = useState('')
   const [endYear, setEndYear] = useState('')
@@ -332,6 +350,7 @@ function BatchPanel({ programs, batches, onChange }: { programs: Program[]; batc
   const [editStart, setEditStart] = useState('')
   const [editEnd, setEditEnd] = useState('')
   const [editLabel, setEditLabel] = useState('')
+  const [saving, setSaving] = useState(false)
 
   const programName = useMemo(() => {
     const map = new Map(programs.map((p) => [p.id, p.name]))
@@ -340,11 +359,16 @@ function BatchPanel({ programs, batches, onChange }: { programs: Program[]; batc
 
   const create = async () => {
     if (!programId || !startYear) return
-    await taxonomyApi.createBatch(Number(programId), Number(startYear), Number(endYear || startYear), label.trim())
-    setStartYear('')
-    setEndYear('')
-    setLabel('')
-    onChange()
+    setSaving(true)
+    try {
+      await taxonomyApi.createBatch(Number(programId), Number(startYear), Number(endYear || startYear), label.trim())
+      setStartYear('')
+      setEndYear('')
+      setLabel('')
+      onChange()
+    } finally {
+      setSaving(false)
+    }
   }
   const startEdit = (b: Batch) => {
     setEditingId(b.id)
@@ -359,7 +383,8 @@ function BatchPanel({ programs, batches, onChange }: { programs: Program[]; batc
     onChange()
   }
   const remove = async (b: Batch) => {
-    if (!window.confirm(`Deactivate batch "${b.label || b.startYear}"?`)) return
+    const ok = await confirm({ description: `Deactivate batch "${b.label || b.startYear}"?`, confirmLabel: 'Deactivate', danger: true })
+    if (!ok) return
     await taxonomyApi.deleteBatch(b.id)
     onChange()
   }
@@ -381,8 +406,8 @@ function BatchPanel({ programs, batches, onChange }: { programs: Program[]; batc
           <YearSelect value={startYear} onChange={setStartYear} placeholder="Start year" />
           <YearSelect value={endYear} onChange={setEndYear} placeholder="End year" />
           <Input placeholder="Label (optional)" value={label} onChange={(e) => setLabel(e.target.value)} className="max-w-[160px]" />
-          <Button onClick={create} disabled={!programId || !startYear}>
-            <Plus size={15} className="mr-1" /> Add
+          <Button onClick={create} disabled={!programId || !startYear || saving}>
+            {saving ? <Loader2 size={15} className="mr-1 animate-spin" /> : <Plus size={15} className="mr-1" />} Add
           </Button>
         </div>
       }
@@ -451,15 +476,22 @@ function YearSelect({ value, onChange, placeholder }: { value: string; onChange:
 // --- Blood Groups ---
 
 function BloodGroupPanel({ bloodGroups, onChange }: { bloodGroups: BloodGroup[]; onChange: () => void }) {
+  const confirm = useConfirm()
   const [name, setName] = useState('')
   const [editingId, setEditingId] = useState<number | null>(null)
   const [editName, setEditName] = useState('')
+  const [saving, setSaving] = useState(false)
 
   const create = async () => {
     if (!name.trim()) return
-    await taxonomyApi.createBloodGroup(name.trim(), bloodGroups.length)
-    setName('')
-    onChange()
+    setSaving(true)
+    try {
+      await taxonomyApi.createBloodGroup(name.trim(), bloodGroups.length)
+      setName('')
+      onChange()
+    } finally {
+      setSaving(false)
+    }
   }
   const startEdit = (bg: BloodGroup) => {
     setEditingId(bg.id)
@@ -473,7 +505,8 @@ function BloodGroupPanel({ bloodGroups, onChange }: { bloodGroups: BloodGroup[];
     onChange()
   }
   const remove = async (bg: BloodGroup) => {
-    if (!window.confirm(`Deactivate "${bg.name}"?`)) return
+    const ok = await confirm({ description: `Deactivate "${bg.name}"?`, confirmLabel: 'Deactivate', danger: true })
+    if (!ok) return
     await taxonomyApi.deleteBloodGroup(bg.id)
     onChange()
   }
@@ -485,8 +518,8 @@ function BloodGroupPanel({ bloodGroups, onChange }: { bloodGroups: BloodGroup[];
       toolbar={
         <div className="flex flex-wrap gap-2">
           <Input placeholder="e.g. A+" value={name} onChange={(e) => setName(e.target.value)} className="max-w-[140px]" />
-          <Button onClick={create} disabled={!name.trim()}>
-            <Plus size={15} className="mr-1" /> Add
+          <Button onClick={create} disabled={!name.trim() || saving}>
+            {saving ? <Loader2 size={15} className="mr-1 animate-spin" /> : <Plus size={15} className="mr-1" />} Add
           </Button>
         </div>
       }

@@ -66,7 +66,8 @@ export const adminEventsApi = {
 }
 
 export const noticesApi = {
-  list: (page = 1) => api.get<PagedResult<Notice>>(`/api/notices?page=${page}`),
+  list: (page = 1, q = '') => api.get<PagedResult<Notice>>(`/api/notices?page=${page}&q=${encodeURIComponent(q)}`),
+  get: (id: number) => api.get<Notice>(`/api/notices/${id}`),
 }
 
 export interface UpsertNoticePayload {
@@ -101,6 +102,8 @@ export const jobsApi = {
   list: (page = 1, q = '') => api.get<PagedResult<JobPost>>(`/api/jobs?page=${page}&q=${encodeURIComponent(q)}`),
   get: (id: number) => api.get<JobPost>(`/api/jobs/${id}`),
   create: (payload: CreateJobPayload) => api.post<JobPost>('/api/jobs', payload),
+  update: (id: number, payload: CreateJobPayload) => api.put<JobPost>(`/api/jobs/${id}`, payload),
+  delete: (id: number) => api.delete(`/api/jobs/${id}`),
 }
 
 export const galleryApi = {

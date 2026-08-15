@@ -7,9 +7,10 @@ import { ROLE } from '../../types/api'
 import { Button, Card, Input, Loading, EmptyState, Pagination } from '../../components/shared/ui'
 import { useAuth } from '../../hooks/useAuth'
 import { useDebounce } from '../../hooks/useDebounce'
+import { parseServerDate, formatDateTime } from '../../lib/utils'
 
 function timeAgo(iso: string) {
-  const diffMs = Date.now() - new Date(iso).getTime()
+  const diffMs = Date.now() - parseServerDate(iso).getTime()
   const days = Math.floor(diffMs / 86400000)
   if (days <= 0) return 'Today'
   if (days === 1) return '1 day ago'
@@ -85,7 +86,9 @@ export default function JobsList() {
                   <div className="min-w-0 flex-1">
                     <div className="flex items-start justify-between gap-2">
                       <p className="font-semibold text-slate-900 truncate">{j.title}</p>
-                      <span className="text-xs text-slate-400 shrink-0">{timeAgo(j.createdAt)}</span>
+                      <span className="text-xs text-slate-400 shrink-0" title={formatDateTime(j.createdAt)}>
+                        {timeAgo(j.createdAt)}
+                      </span>
                     </div>
                     {j.companyName && <p className="text-sm text-slate-600 mt-0.5">{j.companyName}</p>}
                     <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2 text-xs text-slate-500">

@@ -59,7 +59,9 @@ func (h *AdminHandler) ListUsers(w http.ResponseWriter, r *http.Request) {
 }
 
 type updateRoleRequest struct {
-	RoleID int64 `json:"roleId"`
+	RoleID                     int64  `json:"roleId"`
+	ModeratorScopeDepartmentID *int64 `json:"moderatorScopeDepartmentId"`
+	ModeratorScopeBatchID      *int64 `json:"moderatorScopeBatchId"`
 }
 
 // UpdateUserRole is SuperAdmin/Admin only (enforced by router group). Prevents removing the
@@ -95,7 +97,15 @@ func (h *AdminHandler) UpdateUserRole(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	if _, err := h.DB.Exec(`UPDATE users SET role_id = ?, updated_at = datetime('now') WHERE id = ?`, req.RoleID, targetID); err != nil {
+	// Scope only ever applies to Moderator — switching a user to any other role always clears
+	// it, so a former moderator's old scope can't linger and silently narrow a later Admin grant.
+	deptScope, batchScope := req.ModeratorScopeDepartmentID, req.ModeratorScopeBatchID
+	if req.RoleID != models.RoleModerator {
+		deptScope, batchScope = nil, nil
+	}
+
+	if _, err := h.DB.Exec(`UPDATE users SET role_id = ?, moderator_scope_department_id = ?, moderator_scope_batch_id = ?, updated_at = datetime('now') WHERE id = ?`,
+		req.RoleID, deptScope, batchScope, targetID); err != nil {
 		httpx.Error(w, http.StatusInternalServerError, "update failed")
 		return
 	}
@@ -283,6 +293,7 @@ func (h *AdminHandler) decideRegistration(w http.ResponseWriter, r *http.Request
 
 	if newStatus == models.StatusApproved {
 		syncAlumniFTS(h.DB, targetID)
+		syncStudentFTS(h.DB, targetID)
 		mailer.Enqueue(h.DB, target.Email, "Your membership has been approved",
 			"<p>Welcome! Your account has been approved. You can now log in.</p>")
 	} else {
@@ -357,6 +368,7 @@ func (h *AdminHandler) ConvertBatchToAlumni(w http.ResponseWriter, r *http.Reque
 	}
 	for _, s := range students {
 		syncAlumniFTS(h.DB, s.UserID)
+		_, _ = h.DB.Exec(`DELETE FROM students_fts WHERE rowid = ?`, s.UserID)
 	}
 	httpx.JSON(w, http.StatusOK, map[string]any{"message": "batch converted to alumni", "count": len(students)})
 }
@@ -419,19 +431,45 @@ func (h *AdminHandler) RevertBatchConversion(w http.ResponseWriter, r *http.Requ
 		httpx.Error(w, http.StatusInternalServerError, "revert failed")
 		return
 	}
+	for _, a := range alumni {
+		syncStudentFTS(h.DB, a.UserID)
+	}
 	httpx.JSON(w, http.StatusOK, map[string]string{"message": "batch conversion reverted"})
 }
 
 // --- Audit logs ---
 
+type auditLogRow struct {
+	models.AuditLog
+	ActorName string `db:"actor_name" json:"actorName,omitempty"`
+}
+
+// ListAuditLogs returns every recorded admin action, most recent first — only mutation
+// endpoints under the Admin/SuperAdmin route group ever call audit.Log, so this is inherently
+// scoped to admin activity (institution settings, dropdown/taxonomy management, notices,
+// events, committee, and user approve/reject/role/status changes) without needing an
+// allowlist. Optional ?userId= narrows to one actor for a per-admin activity view.
 func (h *AdminHandler) ListAuditLogs(w http.ResponseWriter, r *http.Request) {
 	pg := httpx.ParsePagination(r)
-	var total int
-	_ = h.DB.Get(&total, `SELECT COUNT(*) FROM audit_logs`)
+	userID := r.URL.Query().Get("userId")
 
-	logs := []models.AuditLog{}
-	err := h.DB.Select(&logs, `SELECT * FROM audit_logs ORDER BY created_at DESC LIMIT ? OFFSET ?`, pg.PageSize, pg.Offset)
-	if err != nil && err != sql.ErrNoRows {
+	where := ""
+	args := []any{}
+	if userID != "" {
+		where = "WHERE al.actor_user_id = ?"
+		args = append(args, userID)
+	}
+
+	var total int
+	_ = h.DB.Get(&total, "SELECT COUNT(*) FROM audit_logs al "+where, args...)
+
+	logs := []auditLogRow{}
+	q := `SELECT al.*, COALESCE(u.full_name, '') AS actor_name
+		FROM audit_logs al
+		LEFT JOIN users u ON u.id = al.actor_user_id
+		` + where + ` ORDER BY al.created_at DESC LIMIT ? OFFSET ?`
+	pagedArgs := append(append([]any{}, args...), pg.PageSize, pg.Offset)
+	if err := h.DB.Select(&logs, q, pagedArgs...); err != nil && err != sql.ErrNoRows {
 		httpx.Error(w, http.StatusInternalServerError, "list failed")
 		return
 	}

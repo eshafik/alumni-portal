@@ -3,10 +3,12 @@ package handlers
 import (
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/jmoiron/sqlx"
 
+	"alumni-portal/internal/audit"
 	"alumni-portal/internal/auth"
 	"alumni-portal/internal/httpx"
 	"alumni-portal/internal/mailer"
@@ -36,17 +38,34 @@ func (h *NoticeHandler) List(w http.ResponseWriter, r *http.Request) {
 	pg := httpx.ParsePagination(r)
 	u := auth.CurrentUser(r)
 	publicOnly := u == nil || u.Status != models.StatusApproved
+	q := strings.TrimSpace(r.URL.Query().Get("q"))
 
-	where := ""
+	conds := []string{}
+	args := []any{}
 	if publicOnly {
-		where = "WHERE is_public = 1"
+		conds = append(conds, "is_public = 1")
+	}
+	if q != "" {
+		conds = append(conds, "id IN (SELECT rowid FROM notices_fts WHERE notices_fts MATCH ?)")
+		args = append(args, sanitizeFTSQuery(q))
+	}
+	where := ""
+	if len(conds) > 0 {
+		where = "WHERE " + strings.Join(conds, " AND ")
 	}
 
 	var total int
-	_ = h.DB.Get(&total, "SELECT COUNT(*) FROM notices "+where)
+	_ = h.DB.Get(&total, "SELECT COUNT(*) FROM notices "+where, args...)
 
+	// Newest first, ordered by id rather than created_at: id is SQLite's INTEGER PRIMARY KEY
+	// (the rowid itself), auto-increments with every insert, and is never reassigned — so it's
+	// monotonic with creation order and the table's own primary-key B-tree can be walked
+	// backwards directly, no sort step needed. created_at has no index at all, so ORDER BY
+	// created_at DESC would force a full scan + sort on every request as the table grows.
+	// Pinned is shown as a badge, not used to reorder the list.
 	notices := []models.Notice{}
-	if err := h.DB.Select(&notices, `SELECT * FROM notices `+where+` ORDER BY pinned DESC, published_at DESC LIMIT ? OFFSET ?`, pg.PageSize, pg.Offset); err != nil {
+	listArgs := append(append([]any{}, args...), pg.PageSize, pg.Offset)
+	if err := h.DB.Select(&notices, "SELECT * FROM notices "+where+" ORDER BY id DESC LIMIT ? OFFSET ?", listArgs...); err != nil {
 		httpx.Error(w, http.StatusInternalServerError, "list failed")
 		return
 	}
@@ -55,6 +74,28 @@ func (h *NoticeHandler) List(w http.ResponseWriter, r *http.Request) {
 		items[i] = h.withImageURL(n)
 	}
 	httpx.JSON(w, http.StatusOK, httpx.PagedResult{Items: items, Page: pg.Page, PageSize: pg.PageSize, Total: total})
+}
+
+// Get is reachable without login (OptionalAuth) — same is_public visibility rule as List.
+func (h *NoticeHandler) Get(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	if err != nil {
+		httpx.Error(w, http.StatusBadRequest, "invalid id")
+		return
+	}
+	u := auth.CurrentUser(r)
+	publicOnly := u == nil || u.Status != models.StatusApproved
+
+	var n models.Notice
+	if err := h.DB.Get(&n, `SELECT * FROM notices WHERE id = ?`, id); err != nil {
+		httpx.Error(w, http.StatusNotFound, "notice not found")
+		return
+	}
+	if publicOnly && !n.IsPublic {
+		httpx.Error(w, http.StatusNotFound, "notice not found")
+		return
+	}
+	httpx.JSON(w, http.StatusOK, h.withImageURL(n))
 }
 
 type upsertNoticeRequest struct {
@@ -89,6 +130,8 @@ func (h *NoticeHandler) Create(w http.ResponseWriter, r *http.Request) {
 	id, _ := res.LastInsertId()
 	var n models.Notice
 	_ = h.DB.Get(&n, `SELECT * FROM notices WHERE id = ?`, id)
+	syncNoticeFTS(h.DB, id)
+	audit.Log(h.DB, u.InstitutionID, &u.ID, "notice.created", "notice", &id, nil, n)
 
 	if req.Importance == "important" || req.Importance == "urgent" {
 		h.notifyAllMembers(n)
@@ -111,6 +154,7 @@ func (h *NoticeHandler) notifyAllMembers(n models.Notice) {
 }
 
 func (h *NoticeHandler) Update(w http.ResponseWriter, r *http.Request) {
+	actor := auth.CurrentUser(r)
 	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
 		httpx.Error(w, http.StatusBadRequest, "invalid id")
@@ -121,15 +165,20 @@ func (h *NoticeHandler) Update(w http.ResponseWriter, r *http.Request) {
 		httpx.Error(w, http.StatusBadRequest, "title is required")
 		return
 	}
+	var before models.Notice
+	_ = h.DB.Get(&before, `SELECT * FROM notices WHERE id = ?`, id)
 	if _, err := h.DB.Exec(`UPDATE notices SET title = ?, body = ?, importance = ?, pinned = ?, is_public = ?, image_attachment_id = ? WHERE id = ?`,
 		req.Title, req.Body, req.Importance, req.Pinned, req.IsPublic, req.ImageAttachmentID, id); err != nil {
 		httpx.Error(w, http.StatusInternalServerError, "update failed")
 		return
 	}
+	syncNoticeFTS(h.DB, id)
+	audit.Log(h.DB, actor.InstitutionID, &actor.ID, "notice.updated", "notice", &id, before, req)
 	httpx.JSON(w, http.StatusOK, map[string]string{"message": "notice updated"})
 }
 
 func (h *NoticeHandler) Delete(w http.ResponseWriter, r *http.Request) {
+	actor := auth.CurrentUser(r)
 	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
 		httpx.Error(w, http.StatusBadRequest, "invalid id")
@@ -139,5 +188,7 @@ func (h *NoticeHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		httpx.Error(w, http.StatusInternalServerError, "delete failed")
 		return
 	}
+	_, _ = h.DB.Exec(`DELETE FROM notices_fts WHERE rowid = ?`, id)
+	audit.Log(h.DB, actor.InstitutionID, &actor.ID, "notice.deleted", "notice", &id, nil, nil)
 	httpx.JSON(w, http.StatusOK, map[string]string{"message": "notice deleted"})
 }

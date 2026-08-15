@@ -1,9 +1,12 @@
 import { useEffect, useState } from 'react'
-import { Pencil, Trash2, Pin, Plus } from 'lucide-react'
+import { useNavigate, Link } from 'react-router-dom'
+import { Pencil, Trash2, Pin, Plus, Loader2, Search } from 'lucide-react'
 import { noticesApi, adminNoticesApi } from '../../api/content'
 import type { Notice } from '../../types/api'
 import { Button, Card, Input, Textarea, Select, Loading } from '../../components/shared/ui'
 import { ImageUploadField } from '../../components/shared/ImageUploadField'
+import { useConfirm } from '../../hooks/useConfirm'
+import { useDebounce } from '../../hooks/useDebounce'
 
 const emptyForm = {
   title: '',
@@ -15,9 +18,12 @@ const emptyForm = {
 }
 
 export default function AdminNotices() {
+  const confirm = useConfirm()
+  const navigate = useNavigate()
+  const [q, setQ] = useState('')
+  const debouncedQ = useDebounce(q, 300)
   const [notices, setNotices] = useState<Notice[]>([])
   const [loading, setLoading] = useState(true)
-  const [editingId, setEditingId] = useState<number | null>(null)
   const [form, setForm] = useState(emptyForm)
   const [imageUrl, setImageUrl] = useState<string>()
   const [saving, setSaving] = useState(false)
@@ -25,49 +31,28 @@ export default function AdminNotices() {
   const reload = () => {
     setLoading(true)
     noticesApi
-      .list(1)
+      .list(1, debouncedQ)
       .then((res) => setNotices(res.items ?? []))
       .finally(() => setLoading(false))
   }
-  useEffect(reload, [])
-
-  const resetForm = () => {
-    setEditingId(null)
-    setForm(emptyForm)
-    setImageUrl(undefined)
-  }
-
-  const startEdit = (n: Notice) => {
-    setEditingId(n.id)
-    setForm({
-      title: n.title,
-      body: n.body,
-      importance: n.importance,
-      pinned: n.pinned,
-      isPublic: n.isPublic,
-      imageAttachmentId: n.imageAttachmentId ?? null,
-    })
-    setImageUrl(n.imageUrl)
-  }
+  useEffect(reload, [debouncedQ])
 
   const submit = async () => {
     if (!form.title.trim()) return
     setSaving(true)
     try {
-      if (editingId !== null) {
-        await adminNoticesApi.update(editingId, form)
-      } else {
-        await adminNoticesApi.create(form)
-      }
-      resetForm()
-      reload()
+      const created = await adminNoticesApi.create(form)
+      setForm(emptyForm)
+      setImageUrl(undefined)
+      navigate(`/notices/${created.id}`)
     } finally {
       setSaving(false)
     }
   }
 
   const remove = async (n: Notice) => {
-    if (!window.confirm(`Delete notice "${n.title}"?`)) return
+    const ok = await confirm({ description: `Delete notice "${n.title}"?`, confirmLabel: 'Delete', danger: true })
+    if (!ok) return
     await adminNoticesApi.delete(n.id)
     reload()
   }
@@ -78,13 +63,13 @@ export default function AdminNotices() {
         <h1 className="text-2xl font-semibold text-slate-900">Notices</h1>
         <p className="text-sm text-slate-500 mt-1">
           Public notices are visible to anyone on the homepage. Private notices are visible only to logged-in,
-          approved members.
+          approved members. Click a notice below to edit it.
         </p>
       </div>
 
       <Card className="mb-6">
-        <h2 className="text-lg font-medium mb-4">{editingId !== null ? 'Edit notice' : 'New notice'}</h2>
-        <div className="space-y-4">
+        <h2 className="text-lg font-medium mb-4">New notice</h2>
+        <fieldset disabled={saving} className="space-y-4">
           <Input placeholder="Title" value={form.title} onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))} />
           <Textarea placeholder="Body" rows={4} value={form.body} onChange={(e) => setForm((f) => ({ ...f, body: e.target.value }))} />
           <div className="grid sm:grid-cols-2 gap-4">
@@ -114,45 +99,57 @@ export default function AdminNotices() {
               setImageUrl(url)
             }}
           />
-          <div className="flex gap-2">
-            <Button onClick={submit} disabled={!form.title.trim() || saving}>
-              <Plus size={15} className="mr-1" /> {editingId !== null ? 'Save changes' : 'Publish notice'}
-            </Button>
-            {editingId !== null && (
-              <Button variant="secondary" onClick={resetForm}>
-                Cancel
-              </Button>
-            )}
-          </div>
+        </fieldset>
+        <div className="flex gap-2 mt-4">
+          <Button onClick={submit} disabled={!form.title.trim() || saving}>
+            {saving ? <Loader2 size={15} className="mr-1 animate-spin" /> : <Plus size={15} className="mr-1" />}
+            Publish notice
+          </Button>
         </div>
       </Card>
 
-      {loading ? (
+      <div className="relative max-w-xs mb-4">
+        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+        <Input placeholder="Search notices..." className="pl-9" value={q} onChange={(e) => setQ(e.target.value)} />
+        {loading && <Loader2 size={15} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 animate-spin" />}
+      </div>
+
+      {loading && notices.length === 0 ? (
         <Loading />
       ) : (
         <div className="space-y-3">
-          {notices.length === 0 && <p className="text-sm text-slate-400">No notices yet.</p>}
+          {notices.length === 0 && <p className="text-sm text-slate-400">No notices found.</p>}
           {notices.map((n) => (
-            <Card key={n.id} className="flex items-start justify-between gap-4">
-              <div className="min-w-0">
-                <div className="flex items-center gap-2">
-                  {n.pinned && <Pin size={13} className="text-brand" />}
-                  <p className="font-medium">{n.title}</p>
-                  <span className="text-xs rounded-full px-2 py-0.5 bg-slate-100 text-slate-500">{n.importance}</span>
-                  <span className={`text-xs rounded-full px-2 py-0.5 ${n.isPublic ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-500'}`}>
-                    {n.isPublic ? 'Public' : 'Private'}
-                  </span>
+            <Card key={n.id} className="p-0 overflow-hidden hover:shadow-md hover:border-brand/30 transition-all">
+              <Link to={`/notices/${n.id}`} className="flex items-start justify-between gap-4 p-4">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    {n.pinned && <Pin size={13} className="text-brand" />}
+                    <p className="font-medium hover:text-brand">{n.title}</p>
+                    <span className="text-xs rounded-full px-2 py-0.5 bg-slate-100 text-slate-500">{n.importance}</span>
+                    <span className={`text-xs rounded-full px-2 py-0.5 ${n.isPublic ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-500'}`}>
+                      {n.isPublic ? 'Public' : 'Private'}
+                    </span>
+                  </div>
+                  <p className="text-sm text-slate-500 mt-1 line-clamp-2">{n.body}</p>
                 </div>
-                <p className="text-sm text-slate-500 mt-1 line-clamp-2">{n.body}</p>
-              </div>
-              <div className="flex items-center gap-1 shrink-0">
-                <button onClick={() => startEdit(n)} className="p-1.5 rounded-md text-slate-400 hover:text-brand hover:bg-blue-50" aria-label="Edit">
-                  <Pencil size={15} />
-                </button>
-                <button onClick={() => remove(n)} className="p-1.5 rounded-md text-slate-400 hover:text-red-600 hover:bg-red-50" aria-label="Delete">
-                  <Trash2 size={15} />
-                </button>
-              </div>
+                <div className="flex items-center gap-1 shrink-0">
+                  <span className="p-1.5 text-slate-300" title="Click to view / edit">
+                    <Pencil size={15} />
+                  </span>
+                  <button
+                    onClick={(e) => {
+                      e.preventDefault()
+                      e.stopPropagation()
+                      remove(n)
+                    }}
+                    className="p-1.5 rounded-md text-slate-400 hover:text-red-600 hover:bg-red-50"
+                    aria-label="Delete"
+                  >
+                    <Trash2 size={15} />
+                  </button>
+                </div>
+              </Link>
             </Card>
           ))}
         </div>

@@ -38,3 +38,40 @@ body {
     animation: none;
   }
 }
+
+@keyframes flip-in {
+  from {
+    transform: rotateY(-90deg) scale(0.95);
+    opacity: 0;
+  }
+  to {
+    transform: rotateY(0deg) scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes backdrop-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.animate-flip-in {
+  animation: flip-in 0.45s cubic-bezier(0.16, 1, 0.3, 1) both;
+  transform-style: preserve-3d;
+  backface-visibility: hidden;
+}
+
+.animate-backdrop-in {
+  animation: backdrop-in 0.25s ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-flip-in,
+  .animate-backdrop-in {
+    animation: none;
+  }
+}

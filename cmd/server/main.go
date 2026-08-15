@@ -67,7 +67,7 @@ func main() {
 	secureCookies := cfg.AppEnv == "production"
 
 	authHandler := &handlers.AuthHandler{DB: dbx, Secure: secureCookies}
-	institutionHandler := &handlers.InstitutionHandler{DB: dbx, Storage: store}
+	institutionHandler := &handlers.InstitutionHandler{DB: dbx, Storage: store, Timezone: cfg.Timezone}
 	healthHandler := &handlers.HealthHandler{DB: dbx}
 	alumniHandler := &handlers.AlumniHandler{DB: dbx, Storage: store}
 	studentHandler := &handlers.StudentHandler{DB: dbx, Storage: store}
@@ -114,6 +114,7 @@ func main() {
 	r.Get("/api/jobs", jobHandler.List)
 	r.Get("/api/jobs/{id}", jobHandler.Get)
 	r.With(auth.OptionalAuth(dbx)).Get("/api/notices", noticeHandler.List)
+	r.With(auth.OptionalAuth(dbx)).Get("/api/notices/{id}", noticeHandler.Get)
 	r.With(auth.OptionalAuth(dbx)).Get("/api/events", eventHandler.List)
 	r.With(auth.OptionalAuth(dbx)).Get("/api/events/{slug}", eventHandler.Get)
 	r.Get("/api/businesses", businessHandler.List)
@@ -141,6 +142,8 @@ func main() {
 		r.Post("/api/posts", postHandler.Create)
 
 		r.Post("/api/jobs", jobHandler.Create)
+		r.Put("/api/jobs/{id}", jobHandler.Update)
+		r.Delete("/api/jobs/{id}", jobHandler.Delete)
 
 		r.Post("/api/events/{slug}/register", eventHandler.Register)
 		r.Delete("/api/events/{slug}/register", eventHandler.CancelRegistration)

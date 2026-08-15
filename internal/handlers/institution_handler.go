@@ -7,14 +7,17 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/jmoiron/sqlx"
 
+	"alumni-portal/internal/audit"
+	"alumni-portal/internal/auth"
 	"alumni-portal/internal/httpx"
 	"alumni-portal/internal/models"
 	"alumni-portal/internal/storage"
 )
 
 type InstitutionHandler struct {
-	DB      *sqlx.DB
-	Storage storage.Driver
+	DB       *sqlx.DB
+	Storage  storage.Driver
+	Timezone string
 }
 
 type institutionResponse struct {
@@ -40,6 +43,7 @@ func (h *InstitutionHandler) GetInstitution(w http.ResponseWriter, r *http.Reque
 			"alumniCount": alumniCount,
 			"batchCount":  batchCount,
 		},
+		"timezone": h.Timezone,
 	})
 }
 
@@ -60,6 +64,7 @@ type updateInstitutionRequest struct {
 }
 
 func (h *InstitutionHandler) UpdateInstitution(w http.ResponseWriter, r *http.Request) {
+	actor := auth.CurrentUser(r)
 	var req updateInstitutionRequest
 	if err := httpx.DecodeJSON(r, &req); err != nil {
 		httpx.Error(w, http.StatusBadRequest, "invalid request body")
@@ -77,6 +82,7 @@ func (h *InstitutionHandler) UpdateInstitution(w http.ResponseWriter, r *http.Re
 		httpx.Error(w, http.StatusInternalServerError, "update failed")
 		return
 	}
+	audit.Log(h.DB, actor.InstitutionID, &actor.ID, "institution.updated", "institution", nil, nil, req)
 	h.GetInstitution(w, r)
 }
 
@@ -97,6 +103,7 @@ type upsertDepartmentRequest struct {
 }
 
 func (h *InstitutionHandler) CreateDepartment(w http.ResponseWriter, r *http.Request) {
+	actor := auth.CurrentUser(r)
 	var req upsertDepartmentRequest
 	if err := httpx.DecodeJSON(r, &req); err != nil || req.Name == "" {
 		httpx.Error(w, http.StatusBadRequest, "name is required")
@@ -112,10 +119,12 @@ func (h *InstitutionHandler) CreateDepartment(w http.ResponseWriter, r *http.Req
 	id, _ := res.LastInsertId()
 	var d models.Department
 	_ = h.DB.Get(&d, `SELECT * FROM departments WHERE id = ?`, id)
+	audit.Log(h.DB, actor.InstitutionID, &actor.ID, "department.created", "department", &id, nil, d)
 	httpx.JSON(w, http.StatusCreated, d)
 }
 
 func (h *InstitutionHandler) UpdateDepartment(w http.ResponseWriter, r *http.Request) {
+	actor := auth.CurrentUser(r)
 	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
 		httpx.Error(w, http.StatusBadRequest, "invalid id")
@@ -126,12 +135,15 @@ func (h *InstitutionHandler) UpdateDepartment(w http.ResponseWriter, r *http.Req
 		httpx.Error(w, http.StatusBadRequest, "name is required")
 		return
 	}
+	var before models.Department
+	_ = h.DB.Get(&before, `SELECT * FROM departments WHERE id = ?`, id)
 	if _, err := h.DB.Exec(`UPDATE departments SET name = ?, code = ? WHERE id = ?`, req.Name, req.Code, id); err != nil {
 		httpx.Error(w, http.StatusInternalServerError, "update failed")
 		return
 	}
 	var d models.Department
 	_ = h.DB.Get(&d, `SELECT * FROM departments WHERE id = ?`, id)
+	audit.Log(h.DB, actor.InstitutionID, &actor.ID, "department.updated", "department", &id, before, d)
 	httpx.JSON(w, http.StatusOK, d)
 }
 
@@ -139,6 +151,7 @@ func (h *InstitutionHandler) UpdateDepartment(w http.ResponseWriter, r *http.Req
 // members/programs/batches referencing it must keep working; it just drops out of the
 // signup/admin "active" dropdowns going forward.
 func (h *InstitutionHandler) DeleteDepartment(w http.ResponseWriter, r *http.Request) {
+	actor := auth.CurrentUser(r)
 	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
 		httpx.Error(w, http.StatusBadRequest, "invalid id")
@@ -148,6 +161,7 @@ func (h *InstitutionHandler) DeleteDepartment(w http.ResponseWriter, r *http.Req
 		httpx.Error(w, http.StatusInternalServerError, "delete failed")
 		return
 	}
+	audit.Log(h.DB, actor.InstitutionID, &actor.ID, "department.deactivated", "department", &id, nil, nil)
 	httpx.JSON(w, http.StatusOK, map[string]string{"message": "department deactivated"})
 }
 
@@ -176,6 +190,7 @@ type upsertProgramRequest struct {
 }
 
 func (h *InstitutionHandler) CreateProgram(w http.ResponseWriter, r *http.Request) {
+	actor := auth.CurrentUser(r)
 	var req upsertProgramRequest
 	if err := httpx.DecodeJSON(r, &req); err != nil || req.Name == "" || req.DepartmentID == 0 {
 		httpx.Error(w, http.StatusBadRequest, "departmentId and name are required")
@@ -189,10 +204,12 @@ func (h *InstitutionHandler) CreateProgram(w http.ResponseWriter, r *http.Reques
 	id, _ := res.LastInsertId()
 	var p models.Program
 	_ = h.DB.Get(&p, `SELECT * FROM programs WHERE id = ?`, id)
+	audit.Log(h.DB, actor.InstitutionID, &actor.ID, "program.created", "program", &id, nil, p)
 	httpx.JSON(w, http.StatusCreated, p)
 }
 
 func (h *InstitutionHandler) UpdateProgram(w http.ResponseWriter, r *http.Request) {
+	actor := auth.CurrentUser(r)
 	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
 		httpx.Error(w, http.StatusBadRequest, "invalid id")
@@ -203,16 +220,20 @@ func (h *InstitutionHandler) UpdateProgram(w http.ResponseWriter, r *http.Reques
 		httpx.Error(w, http.StatusBadRequest, "name is required")
 		return
 	}
+	var before models.Program
+	_ = h.DB.Get(&before, `SELECT * FROM programs WHERE id = ?`, id)
 	if _, err := h.DB.Exec(`UPDATE programs SET name = ?, degree_level = ? WHERE id = ?`, req.Name, req.DegreeLevel, id); err != nil {
 		httpx.Error(w, http.StatusInternalServerError, "update failed")
 		return
 	}
 	var p models.Program
 	_ = h.DB.Get(&p, `SELECT * FROM programs WHERE id = ?`, id)
+	audit.Log(h.DB, actor.InstitutionID, &actor.ID, "program.updated", "program", &id, before, p)
 	httpx.JSON(w, http.StatusOK, p)
 }
 
 func (h *InstitutionHandler) DeleteProgram(w http.ResponseWriter, r *http.Request) {
+	actor := auth.CurrentUser(r)
 	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
 		httpx.Error(w, http.StatusBadRequest, "invalid id")
@@ -222,6 +243,7 @@ func (h *InstitutionHandler) DeleteProgram(w http.ResponseWriter, r *http.Reques
 		httpx.Error(w, http.StatusInternalServerError, "delete failed")
 		return
 	}
+	audit.Log(h.DB, actor.InstitutionID, &actor.ID, "program.deactivated", "program", &id, nil, nil)
 	httpx.JSON(w, http.StatusOK, map[string]string{"message": "program deactivated"})
 }
 
@@ -251,6 +273,7 @@ type upsertBatchRequest struct {
 }
 
 func (h *InstitutionHandler) CreateBatch(w http.ResponseWriter, r *http.Request) {
+	actor := auth.CurrentUser(r)
 	var req upsertBatchRequest
 	if err := httpx.DecodeJSON(r, &req); err != nil || req.ProgramID == 0 || req.StartYear == 0 {
 		httpx.Error(w, http.StatusBadRequest, "programId and startYear are required")
@@ -265,10 +288,12 @@ func (h *InstitutionHandler) CreateBatch(w http.ResponseWriter, r *http.Request)
 	id, _ := res.LastInsertId()
 	var b models.Batch
 	_ = h.DB.Get(&b, `SELECT * FROM batches WHERE id = ?`, id)
+	audit.Log(h.DB, actor.InstitutionID, &actor.ID, "batch.created", "batch", &id, nil, b)
 	httpx.JSON(w, http.StatusCreated, b)
 }
 
 func (h *InstitutionHandler) UpdateBatch(w http.ResponseWriter, r *http.Request) {
+	actor := auth.CurrentUser(r)
 	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
 		httpx.Error(w, http.StatusBadRequest, "invalid id")
@@ -279,6 +304,8 @@ func (h *InstitutionHandler) UpdateBatch(w http.ResponseWriter, r *http.Request)
 		httpx.Error(w, http.StatusBadRequest, "startYear is required")
 		return
 	}
+	var before models.Batch
+	_ = h.DB.Get(&before, `SELECT * FROM batches WHERE id = ?`, id)
 	if _, err := h.DB.Exec(`UPDATE batches SET start_year = ?, end_year = ?, label = ? WHERE id = ?`,
 		req.StartYear, req.EndYear, req.Label, id); err != nil {
 		httpx.Error(w, http.StatusInternalServerError, "update failed")
@@ -286,12 +313,14 @@ func (h *InstitutionHandler) UpdateBatch(w http.ResponseWriter, r *http.Request)
 	}
 	var b models.Batch
 	_ = h.DB.Get(&b, `SELECT * FROM batches WHERE id = ?`, id)
+	audit.Log(h.DB, actor.InstitutionID, &actor.ID, "batch.updated", "batch", &id, before, b)
 	httpx.JSON(w, http.StatusOK, b)
 }
 
 // DeleteBatch soft-deletes only — per spec, a batch with users must never be hard-deleted;
 // is_active = 0 just removes it from future signup/admin dropdowns.
 func (h *InstitutionHandler) DeleteBatch(w http.ResponseWriter, r *http.Request) {
+	actor := auth.CurrentUser(r)
 	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
 		httpx.Error(w, http.StatusBadRequest, "invalid id")
@@ -301,6 +330,7 @@ func (h *InstitutionHandler) DeleteBatch(w http.ResponseWriter, r *http.Request)
 		httpx.Error(w, http.StatusInternalServerError, "delete failed")
 		return
 	}
+	audit.Log(h.DB, actor.InstitutionID, &actor.ID, "batch.deactivated", "batch", &id, nil, nil)
 	httpx.JSON(w, http.StatusOK, map[string]string{"message": "batch deactivated"})
 }
 
@@ -321,6 +351,7 @@ type upsertBloodGroupRequest struct {
 }
 
 func (h *InstitutionHandler) CreateBloodGroup(w http.ResponseWriter, r *http.Request) {
+	actor := auth.CurrentUser(r)
 	var req upsertBloodGroupRequest
 	if err := httpx.DecodeJSON(r, &req); err != nil || req.Name == "" {
 		httpx.Error(w, http.StatusBadRequest, "name is required")
@@ -337,10 +368,12 @@ func (h *InstitutionHandler) CreateBloodGroup(w http.ResponseWriter, r *http.Req
 	id, _ := res.LastInsertId()
 	var bg models.BloodGroup
 	_ = h.DB.Get(&bg, `SELECT * FROM blood_groups WHERE id = ?`, id)
+	audit.Log(h.DB, actor.InstitutionID, &actor.ID, "blood_group.created", "blood_group", &id, nil, bg)
 	httpx.JSON(w, http.StatusCreated, bg)
 }
 
 func (h *InstitutionHandler) UpdateBloodGroup(w http.ResponseWriter, r *http.Request) {
+	actor := auth.CurrentUser(r)
 	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
 		httpx.Error(w, http.StatusBadRequest, "invalid id")
@@ -351,16 +384,20 @@ func (h *InstitutionHandler) UpdateBloodGroup(w http.ResponseWriter, r *http.Req
 		httpx.Error(w, http.StatusBadRequest, "name is required")
 		return
 	}
+	var before models.BloodGroup
+	_ = h.DB.Get(&before, `SELECT * FROM blood_groups WHERE id = ?`, id)
 	if _, err := h.DB.Exec(`UPDATE blood_groups SET name = ?, sort_order = ? WHERE id = ?`, req.Name, req.SortOrder, id); err != nil {
 		httpx.Error(w, http.StatusInternalServerError, "update failed")
 		return
 	}
 	var bg models.BloodGroup
 	_ = h.DB.Get(&bg, `SELECT * FROM blood_groups WHERE id = ?`, id)
+	audit.Log(h.DB, actor.InstitutionID, &actor.ID, "blood_group.updated", "blood_group", &id, before, bg)
 	httpx.JSON(w, http.StatusOK, bg)
 }
 
 func (h *InstitutionHandler) DeleteBloodGroup(w http.ResponseWriter, r *http.Request) {
+	actor := auth.CurrentUser(r)
 	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
 		httpx.Error(w, http.StatusBadRequest, "invalid id")
@@ -370,5 +407,6 @@ func (h *InstitutionHandler) DeleteBloodGroup(w http.ResponseWriter, r *http.Req
 		httpx.Error(w, http.StatusInternalServerError, "delete failed")
 		return
 	}
+	audit.Log(h.DB, actor.InstitutionID, &actor.ID, "blood_group.deactivated", "blood_group", &id, nil, nil)
 	httpx.JSON(w, http.StatusOK, map[string]string{"message": "blood group deactivated"})
 }

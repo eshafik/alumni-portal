@@ -46,8 +46,8 @@ func (h *StudentHandler) List(w http.ResponseWriter, r *http.Request) {
 	where := []string{"u.status = 'approved'", "sp.status = 'active'"}
 	args := []any{}
 	if q != "" {
-		where = append(where, "u.full_name LIKE ?")
-		args = append(args, "%"+q+"%")
+		where = append(where, "u.id IN (SELECT rowid FROM students_fts WHERE students_fts MATCH ?)")
+		args = append(args, sanitizeFTSQuery(q))
 	}
 	if batchID != "" {
 		where = append(where, "sp.batch_id = ?")
@@ -161,5 +161,6 @@ func (h *StudentHandler) UpdateMe(w http.ResponseWriter, r *http.Request) {
 		httpx.Error(w, http.StatusInternalServerError, "update failed")
 		return
 	}
+	syncStudentFTS(h.DB, u.ID)
 	httpx.JSON(w, http.StatusOK, map[string]string{"message": "profile updated"})
 }

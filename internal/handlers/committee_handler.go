@@ -137,6 +137,7 @@ func (h *CommitteeHandler) CreateCommittee(w http.ResponseWriter, r *http.Reques
 		httpx.Error(w, http.StatusInternalServerError, "create failed")
 		return
 	}
+	audit.Log(h.DB, actor.InstitutionID, &actor.ID, "committee.term_started", "committee", &committeeID, nil, req)
 	httpx.JSON(w, http.StatusCreated, map[string]int64{"committeeId": committeeID})
 }
 
@@ -148,6 +149,7 @@ type createPositionRequest struct {
 // CreatePosition adds a custom, institution-defined position. Only the three seeded default
 // positions ever carry is_default_admin — custom positions never auto-grant Admin.
 func (h *CommitteeHandler) CreatePosition(w http.ResponseWriter, r *http.Request) {
+	actor := auth.CurrentUser(r)
 	committeeID, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
 		httpx.Error(w, http.StatusBadRequest, "invalid id")
@@ -167,6 +169,7 @@ func (h *CommitteeHandler) CreatePosition(w http.ResponseWriter, r *http.Request
 	id, _ := res.LastInsertId()
 	var p models.CommitteePosition
 	_ = h.DB.Get(&p, `SELECT * FROM committee_positions WHERE id = ?`, id)
+	audit.Log(h.DB, actor.InstitutionID, &actor.ID, "committee_position.created", "committee_position", &id, nil, p)
 	httpx.JSON(w, http.StatusCreated, p)
 }
 
@@ -199,6 +202,7 @@ func (h *CommitteeHandler) AddMember(w http.ResponseWriter, r *http.Request) {
 		httpx.Error(w, http.StatusInternalServerError, "add member failed")
 		return
 	}
+	audit.Log(h.DB, actor.InstitutionID, &actor.ID, "committee_member.added", "committee_position", &positionID, nil, map[string]any{"userId": req.UserID, "position": position.Title})
 
 	if position.IsDefaultAdmin {
 		var currentRole int64
@@ -213,6 +217,7 @@ func (h *CommitteeHandler) AddMember(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *CommitteeHandler) RemoveMember(w http.ResponseWriter, r *http.Request) {
+	actor := auth.CurrentUser(r)
 	positionID, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
 		httpx.Error(w, http.StatusBadRequest, "invalid id")
@@ -227,5 +232,6 @@ func (h *CommitteeHandler) RemoveMember(w http.ResponseWriter, r *http.Request) 
 		httpx.Error(w, http.StatusInternalServerError, "remove failed")
 		return
 	}
+	audit.Log(h.DB, actor.InstitutionID, &actor.ID, "committee_member.removed", "committee_position", &positionID, map[string]any{"userId": userID}, nil)
 	httpx.JSON(w, http.StatusOK, map[string]string{"message": "member removed"})
 }
