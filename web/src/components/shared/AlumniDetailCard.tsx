@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { Copy, Check } from 'lucide-react'
 import { api } from '../../api/client'
-import { Avatar, Card, Loading } from './ui'
+import { Avatar, Badge, Card, Loading } from './ui'
+import { normalizeExternalUrl, waLink } from '../../lib/utils'
 
 function CopyableValue({ value }: { value: string }) {
   const [copied, setCopied] = useState(false)
@@ -44,6 +45,7 @@ interface ProfileDetail {
   phone?: string
   whatsapp?: string
   currentLocation?: string
+  skillNames?: string
 }
 
 export function AlumniDetailCard({ userId }: { userId: number | string }) {
@@ -74,13 +76,26 @@ export function AlumniDetailCard({ userId }: { userId: number | string }) {
         <div>
           <h1 className="text-xl font-semibold">{profile.fullName}</h1>
           <p className="text-slate-500 text-sm">
-            {profile.currentDesignation && `${profile.currentDesignation}${profile.companyName ? ` at ${profile.companyName}` : ''} · `}
-            {profile.departmentName} · {profile.batchLabel}
+            {[
+              profile.currentDesignation && profile.companyName
+                ? `${profile.currentDesignation} at ${profile.companyName}`
+                : profile.currentDesignation || profile.companyName,
+              profile.departmentName,
+              profile.batchLabel,
+            ]
+              .filter(Boolean)
+              .join(' · ')}
           </p>
         </div>
       </div>
       {profile.bio && <p className="mt-4 text-slate-700">{profile.bio}</p>}
       <dl className="mt-4 grid grid-cols-2 gap-3 text-sm">
+        {profile.programName && (
+          <div>
+            <dt className="text-slate-400">Program</dt>
+            <dd>{profile.programName}</dd>
+          </div>
+        )}
         {profile.currentLocation && (
           <div>
             <dt className="text-slate-400">Location</dt>
@@ -113,7 +128,9 @@ export function AlumniDetailCard({ userId }: { userId: number | string }) {
           <div>
             <dt className="text-slate-400">WhatsApp</dt>
             <dd>
-              <CopyableValue value={profile.whatsapp} />
+              <a href={waLink(profile.whatsapp)} target="_blank" rel="noreferrer" className="text-brand">
+                {profile.whatsapp}
+              </a>
             </dd>
           </div>
         )}
@@ -121,7 +138,7 @@ export function AlumniDetailCard({ userId }: { userId: number | string }) {
           <div>
             <dt className="text-slate-400">LinkedIn</dt>
             <dd>
-              <a href={profile.linkedinUrl} target="_blank" rel="noreferrer" className="text-brand">
+              <a href={normalizeExternalUrl(profile.linkedinUrl)} target="_blank" rel="noreferrer" className="text-brand">
                 View profile
               </a>
             </dd>
@@ -131,13 +148,23 @@ export function AlumniDetailCard({ userId }: { userId: number | string }) {
           <div>
             <dt className="text-slate-400">Website</dt>
             <dd>
-              <a href={profile.websiteUrl} target="_blank" rel="noreferrer" className="text-brand">
+              <a href={normalizeExternalUrl(profile.websiteUrl)} target="_blank" rel="noreferrer" className="text-brand">
                 {profile.websiteUrl}
               </a>
             </dd>
           </div>
         )}
       </dl>
+      {profile.skillNames && (
+        <div className="mt-4">
+          <p className="text-xs text-slate-400 mb-1.5">Skills</p>
+          <div className="flex flex-wrap gap-1.5">
+            {profile.skillNames.split(',').map((skill) => (
+              <Badge key={skill}>{skill}</Badge>
+            ))}
+          </div>
+        </div>
+      )}
     </Card>
   )
 }

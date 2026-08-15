@@ -132,3 +132,65 @@ func (h *BusinessHandler) Create(w http.ResponseWriter, r *http.Request) {
 	_ = h.DB.Get(&b, `SELECT * FROM businesses WHERE id = ?`, id)
 	httpx.JSON(w, http.StatusCreated, h.withOwnerInfo(b))
 }
+
+// Update is owner-only (or Admin/SuperAdmin, for moderation) — enforced here rather than at the
+// route level since ownership can only be determined after loading the target row, same pattern
+// as JobHandler.Update.
+func (h *BusinessHandler) Update(w http.ResponseWriter, r *http.Request) {
+	actor := auth.CurrentUser(r)
+	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	if err != nil {
+		httpx.Error(w, http.StatusBadRequest, "invalid id")
+		return
+	}
+	var existing models.Business
+	if err := h.DB.Get(&existing, `SELECT * FROM businesses WHERE id = ?`, id); err != nil {
+		httpx.Error(w, http.StatusNotFound, "business not found")
+		return
+	}
+	if existing.OwnerUserID != actor.ID && actor.RoleID != models.RoleAdmin && actor.RoleID != models.RoleSuperAdmin {
+		httpx.Error(w, http.StatusForbidden, "only the owner or an admin can edit this business")
+		return
+	}
+	var req upsertBusinessRequest
+	if err := httpx.DecodeJSON(r, &req); err != nil || req.Name == "" {
+		httpx.Error(w, http.StatusBadRequest, "name is required")
+		return
+	}
+	if _, err := h.DB.Exec(`UPDATE businesses SET name = ?, category = ?, description = ?, location = ?,
+		website = ?, contact_phone = ?, contact_email = ?, logo_attachment_id = ?, social_links = ?
+		WHERE id = ?`,
+		req.Name, req.Category, req.Description, req.Location, req.Website,
+		req.ContactPhone, req.ContactEmail, req.LogoAttachmentID, req.SocialLinks, id); err != nil {
+		httpx.Error(w, http.StatusInternalServerError, "update failed")
+		return
+	}
+	var b models.Business
+	_ = h.DB.Get(&b, `SELECT * FROM businesses WHERE id = ?`, id)
+	httpx.JSON(w, http.StatusOK, h.withOwnerInfo(b))
+}
+
+// Delete is owner-only (or Admin/SuperAdmin). Hard-deletes — businesses have no downstream
+// references that would need history preserved, same as job posts/notices.
+func (h *BusinessHandler) Delete(w http.ResponseWriter, r *http.Request) {
+	actor := auth.CurrentUser(r)
+	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	if err != nil {
+		httpx.Error(w, http.StatusBadRequest, "invalid id")
+		return
+	}
+	var existing models.Business
+	if err := h.DB.Get(&existing, `SELECT * FROM businesses WHERE id = ?`, id); err != nil {
+		httpx.Error(w, http.StatusNotFound, "business not found")
+		return
+	}
+	if existing.OwnerUserID != actor.ID && actor.RoleID != models.RoleAdmin && actor.RoleID != models.RoleSuperAdmin {
+		httpx.Error(w, http.StatusForbidden, "only the owner or an admin can delete this business")
+		return
+	}
+	if _, err := h.DB.Exec(`DELETE FROM businesses WHERE id = ?`, id); err != nil {
+		httpx.Error(w, http.StatusInternalServerError, "delete failed")
+		return
+	}
+	httpx.JSON(w, http.StatusOK, map[string]string{"message": "business deleted"})
+}

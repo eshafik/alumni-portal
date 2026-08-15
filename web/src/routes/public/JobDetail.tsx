@@ -8,7 +8,7 @@ import { useConfirm } from '../../hooks/useConfirm'
 import { ROLE } from '../../types/api'
 import type { JobPost } from '../../types/api'
 import { Avatar, Button, Card, Loading } from '../../components/shared/ui'
-import { formatDateTime } from '../../lib/utils'
+import { formatDateTime, normalizeExternalUrl } from '../../lib/utils'
 
 export default function JobDetail() {
   const { id } = useParams()
@@ -80,7 +80,7 @@ export default function JobDetail() {
         {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
         <div className="mt-6">
           {job.applyUrl ? (
-            <a href={job.applyUrl} target="_blank" rel="noreferrer">
+            <a href={normalizeExternalUrl(job.applyUrl)} target="_blank" rel="noreferrer">
               <Button>Apply now</Button>
             </a>
           ) : job.applyEmail ? (

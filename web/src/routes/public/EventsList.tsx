@@ -5,6 +5,7 @@ import { eventsApi } from '../../api/content'
 import type { Event } from '../../types/api'
 import { Button, Card, Input, Loading, EmptyState, Pagination } from '../../components/shared/ui'
 import { useDebounce } from '../../hooks/useDebounce'
+import { normalizeExternalUrl } from '../../lib/utils'
 
 const DESCRIPTION_LIMIT = 180
 
@@ -89,7 +90,7 @@ export default function EventsList() {
                       <p className="font-semibold text-slate-900 hover:text-brand">{e.title}</p>
                     </Link>
                     {e.registrationUrl && (
-                      <a href={e.registrationUrl} target="_blank" rel="noopener noreferrer" className="shrink-0">
+                      <a href={normalizeExternalUrl(e.registrationUrl)} target="_blank" rel="noopener noreferrer" className="shrink-0">
                         <Button className="text-sm px-3 py-1.5">
                           Register <ExternalLink size={12} className="ml-1" />
                         </Button>

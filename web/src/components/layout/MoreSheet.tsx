@@ -1,7 +1,8 @@
 import { Link } from 'react-router-dom'
-import { Calendar, Users, GraduationCap, Briefcase, Store, UserCircle, ShieldCheck, LogOut, LogIn, UserPlus, FileText, ChevronRight } from 'lucide-react'
+import { Calendar, Users, GraduationCap, Bell, Store, ShieldCheck, LogOut, LogIn, UserPlus, FileText, ChevronRight } from 'lucide-react'
 import { useAuth } from '../../hooks/useAuth'
 import { ROLE } from '../../types/api'
+import { Avatar } from '../shared/ui'
 
 interface MoreSheetProps {
   open: boolean
@@ -23,17 +24,22 @@ export function MoreSheet({ open, onClose }: MoreSheetProps) {
   const isApprovedMember = user?.status === 'approved'
   const isAdmin = user && (user.roleId === ROLE.SuperAdmin || user.roleId === ROLE.Admin || user.roleId === ROLE.Moderator)
 
-  // The tab bar always shows Notices as tab 3, and either Directory (members) or Events
-  // (everyone else) as tab 2 — so this list is exactly "everything else" for each case.
+  // The tab bar always shows Jobs as tab 3, and either Directory/Alumni (members) or Events
+  // (everyone else) as tab 2 — so this list is exactly "everything else" for each case, in the
+  // same relative order as the desktop nav: Alumni, Jobs, Notices, Events, Business Directory,
+  // Students, Committee.
   const browseRows: Row[] = isApprovedMember
     ? [
+        { to: '/notices', label: 'Notices', icon: Bell },
         { to: '/events', label: 'Events', icon: Calendar },
-        { to: '/jobs', label: 'Jobs', icon: Briefcase },
         { to: '/businesses', label: 'Business Directory', icon: Store },
-        { to: '/committee', label: 'Committee', icon: Users },
         { to: '/students', label: 'Students', icon: GraduationCap },
+        { to: '/committee', label: 'Committee', icon: Users },
       ]
-    : [{ to: '/committee', label: 'Committee', icon: Users }]
+    : [
+        { to: '/notices', label: 'Notices', icon: Bell },
+        { to: '/committee', label: 'Committee', icon: Users },
+      ]
 
   const handleNavigate = () => onClose()
 
@@ -62,7 +68,15 @@ export function MoreSheet({ open, onClose }: MoreSheetProps) {
 
           {user ? (
             <>
-              <SheetRow to="/profile" label="My Profile" icon={UserCircle} onClick={handleNavigate} />
+              <Link
+                to="/profile"
+                onClick={handleNavigate}
+                className="flex items-center gap-3 px-3 py-3.5 rounded-lg text-slate-700 active:bg-slate-50"
+              >
+                <Avatar name={user.fullName} url={user.avatarUrl} size="sm" />
+                <span className="flex-1 text-[15px] font-medium truncate">{user.fullName}</span>
+                <ChevronRight size={16} className="text-slate-300" />
+              </Link>
               {isAdmin && <SheetRow to="/admin" label="Admin Dashboard" icon={ShieldCheck} onClick={handleNavigate} />}
               <button
                 onClick={() => {

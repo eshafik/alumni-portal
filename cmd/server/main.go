@@ -66,7 +66,7 @@ func main() {
 
 	secureCookies := cfg.AppEnv == "production"
 
-	authHandler := &handlers.AuthHandler{DB: dbx, Secure: secureCookies}
+	authHandler := &handlers.AuthHandler{DB: dbx, Storage: store, Secure: secureCookies}
 	institutionHandler := &handlers.InstitutionHandler{DB: dbx, Storage: store, Timezone: cfg.Timezone}
 	healthHandler := &handlers.HealthHandler{DB: dbx}
 	alumniHandler := &handlers.AlumniHandler{DB: dbx, Storage: store}
@@ -97,6 +97,7 @@ func main() {
 		r.Post("/password/forgot", authHandler.ForgotPassword)
 		r.Post("/password/reset", authHandler.ResetPassword)
 		r.With(requireAuth).Get("/me", authHandler.Me)
+		r.With(requireAuth).Put("/me", authHandler.UpdateMe)
 		r.With(requireAuth).Post("/password/change", authHandler.ChangePassword)
 	})
 
@@ -149,6 +150,8 @@ func main() {
 		r.Delete("/api/events/{slug}/register", eventHandler.CancelRegistration)
 
 		r.Post("/api/businesses", businessHandler.Create)
+		r.Put("/api/businesses/{id}", businessHandler.Update)
+		r.Delete("/api/businesses/{id}", businessHandler.Delete)
 
 		r.Get("/api/notifications", notificationHandler.List)
 		r.Get("/api/notifications/unread-count", notificationHandler.UnreadCount)

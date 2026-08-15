@@ -9,7 +9,7 @@ import { useInView } from '../../hooks/useInView'
 import type { Event, Notice, GalleryImage } from '../../types/api'
 import { Button, Card, Badge, Loading, Reveal } from '../../components/shared/ui'
 import { ImageSlider } from '../../components/shared/ImageSlider'
-import { cn } from '../../lib/utils'
+import { cn, normalizeExternalUrl } from '../../lib/utils'
 
 const DEFAULT_TAGLINE = 'Connect. Remember. Grow Together.'
 const REDUCED_MOTION_QUERY = '(prefers-reduced-motion: reduce)'
@@ -351,7 +351,7 @@ export default function Home() {
                           <p className="font-semibold text-slate-900 hover:text-brand">{e.title}</p>
                         </Link>
                         {e.registrationUrl ? (
-                          <a href={e.registrationUrl} target="_blank" rel="noopener noreferrer" className="shrink-0">
+                          <a href={normalizeExternalUrl(e.registrationUrl)} target="_blank" rel="noopener noreferrer" className="shrink-0">
                             <Button className="text-sm px-3 py-1.5">
                               Register <ExternalLink size={12} className="ml-1" />
                             </Button>

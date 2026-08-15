@@ -22,7 +22,7 @@ function timeAgo(iso: string) {
 
 export default function JobsList() {
   const { user } = useAuth()
-  const canPost = user && [ROLE.Alumni, ROLE.Admin, ROLE.SuperAdmin].includes(user.roleId as any)
+  const canPost = user && [ROLE.Alumni, ROLE.Moderator, ROLE.Admin, ROLE.SuperAdmin].includes(user.roleId as any)
   const [q, setQ] = useState('')
   const debouncedQ = useDebounce(q, 300)
   const [page, setPage] = useState(1)

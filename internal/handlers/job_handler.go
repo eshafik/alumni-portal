@@ -104,7 +104,7 @@ type createJobRequest struct {
 // single nullable FK, never an array, so there is no code path that could attach more than one.
 func (h *JobHandler) Create(w http.ResponseWriter, r *http.Request) {
 	u := auth.CurrentUser(r)
-	if u.RoleID != models.RoleAlumni && u.RoleID != models.RoleAdmin && u.RoleID != models.RoleSuperAdmin {
+	if u.RoleID != models.RoleAlumni && u.RoleID != models.RoleModerator && u.RoleID != models.RoleAdmin && u.RoleID != models.RoleSuperAdmin {
 		httpx.Error(w, http.StatusForbidden, "only alumni can post job opportunities")
 		return
 	}

@@ -63,6 +63,20 @@ type User struct {
 	CreatedAt                  string  `db:"created_at" json:"createdAt"`
 	UpdatedAt                  string  `db:"updated_at" json:"updatedAt"`
 	LastLoginAt                *string `db:"last_login_at" json:"lastLoginAt,omitempty"`
+	AvatarAttachmentID         *int64  `db:"avatar_attachment_id" json:"avatarAttachmentId,omitempty"`
+	Bio                        string  `db:"bio" json:"bio"`
+	CurrentLocation            string  `db:"current_location" json:"currentLocation"`
+	BloodGroupID               *int64  `db:"blood_group_id" json:"bloodGroupId,omitempty"`
+	CurrentDesignation         string  `db:"current_designation" json:"currentDesignation"`
+	PrivacyEmail               bool    `db:"privacy_email" json:"privacyEmail"`
+	PrivacyPhone               bool    `db:"privacy_phone" json:"privacyPhone"`
+	PrivacyLocation            bool    `db:"privacy_location" json:"privacyLocation"`
+	CurrentCompanyName         string  `db:"current_company_name" json:"currentCompanyName"`
+	LinkedinURL                string  `db:"linkedin_url" json:"linkedinUrl"`
+	WhatsappNumber             string  `db:"whatsapp_number" json:"whatsappNumber"`
+	WebsiteURL                 string  `db:"website_url" json:"websiteUrl"`
+	PrivacyWhatsapp            bool    `db:"privacy_whatsapp" json:"privacyWhatsapp"`
+	PrivacyCompany             bool    `db:"privacy_company" json:"privacyCompany"`
 }
 
 type Department struct {

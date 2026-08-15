@@ -26,6 +26,24 @@ export interface OTPResponse {
 
 export const authApi = {
   me: () => api.get<User>('/api/auth/me'),
+  updateMe: (payload: {
+    fullName: string
+    phone: string
+    bio: string
+    currentLocation: string
+    bloodGroupId: number | null
+    avatarAttachmentId: number | null
+    currentDesignation: string
+    privacyEmail: boolean
+    privacyPhone: boolean
+    privacyLocation: boolean
+    currentCompanyName: string
+    linkedinUrl: string
+    whatsappNumber: string
+    websiteUrl: string
+    privacyWhatsapp: boolean
+    privacyCompany: boolean
+  }) => api.put<{ message: string }>('/api/auth/me', payload),
   login: (email: string, password: string) => api.post<User>('/api/auth/login', { email, password }),
   logout: () => api.post('/api/auth/logout'),
   signup: (payload: SignupPayload) => api.post<OTPResponse>('/api/auth/signup', payload),

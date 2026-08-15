@@ -12,6 +12,26 @@ export interface User {
   // False only for approved alumni/students with no avatar set yet — drives the mandatory
   // profile-setup redirect. Always true for Admin/SuperAdmin/Moderator (gate never applies).
   hasAvatar: boolean
+  // Row existence, not roleId, decides where this account's editable profile lives — a
+  // promoted Admin/Moderator keeps editing/searching through their original alumni_profiles/
+  // student_profiles row. See Profile.tsx's hasAlumniProfileRow/hasStudentProfileRow.
+  hasAlumniProfile?: boolean
+  hasStudentProfile?: boolean
+  avatarUrl?: string
+  avatarAttachmentId?: number
+  bio?: string
+  currentLocation?: string
+  bloodGroupId?: number
+  currentDesignation?: string
+  privacyEmail?: boolean
+  privacyPhone?: boolean
+  privacyLocation?: boolean
+  currentCompanyName?: string
+  linkedinUrl?: string
+  whatsappNumber?: string
+  websiteUrl?: string
+  privacyWhatsapp?: boolean
+  privacyCompany?: boolean
 }
 
 export const ROLE = {

@@ -14,6 +14,7 @@ import (
 	"alumni-portal/internal/httpx"
 	"alumni-portal/internal/mailer"
 	"alumni-portal/internal/models"
+	"alumni-portal/internal/storage"
 )
 
 // otpCooldownSeconds rounds a cooldown duration up to whole seconds for the JSON response —
@@ -28,8 +29,9 @@ func otpCooldownSeconds(d time.Duration) int {
 }
 
 type AuthHandler struct {
-	DB     *sqlx.DB
-	Secure bool // cookie Secure flag; true in production
+	DB      *sqlx.DB
+	Storage storage.Driver
+	Secure  bool // cookie Secure flag; true in production
 }
 
 type signupRequest struct {
@@ -272,7 +274,13 @@ type meResponse struct {
 	models.User
 	// HasAvatar drives the mandatory profile-setup redirect for alumni/students — false for
 	// roles with no profile row at all (Admin/SuperAdmin/Moderator), which never gates.
-	HasAvatar bool `json:"hasAvatar"`
+	HasAvatar bool   `json:"hasAvatar"`
+	AvatarURL string `json:"avatarUrl,omitempty"`
+	// HasAlumniProfile/HasStudentProfile tell the frontend which endpoint owns this account's
+	// editable profile — independent of current role_id, since a promoted Admin/Moderator keeps
+	// their original alumni_profiles/student_profiles row.
+	HasAlumniProfile  bool `json:"hasAlumniProfile"`
+	HasStudentProfile bool `json:"hasStudentProfile"`
 }
 
 func (h *AuthHandler) Me(w http.ResponseWriter, r *http.Request) {
@@ -282,15 +290,98 @@ func (h *AuthHandler) Me(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	resp := meResponse{User: *u}
-	switch u.RoleID {
-	case models.RoleAlumni:
-		_ = h.DB.Get(&resp.HasAvatar, `SELECT avatar_attachment_id IS NOT NULL FROM alumni_profiles WHERE user_id = ?`, u.ID)
-	case models.RoleStudent:
-		_ = h.DB.Get(&resp.HasAvatar, `SELECT avatar_attachment_id IS NOT NULL FROM student_profiles WHERE user_id = ?`, u.ID)
+	// Row existence, not current role, decides where this account's editable profile lives —
+	// an Alumni/Student promoted to Admin/Moderator (e.g. via a committee position) keeps their
+	// alumni_profiles/student_profiles row and must keep editing/searching through it, or their
+	// directory listing and their own profile page silently diverge (Profile.tsx routes saves
+	// the same way, see hasAlumniProfileRow/hasStudentProfileRow there).
+	_ = h.DB.Get(&resp.HasAlumniProfile, `SELECT EXISTS(SELECT 1 FROM alumni_profiles WHERE user_id = ?)`, u.ID)
+	_ = h.DB.Get(&resp.HasStudentProfile, `SELECT EXISTS(SELECT 1 FROM student_profiles WHERE user_id = ?)`, u.ID)
+	switch {
+	case resp.HasAlumniProfile:
+		var avatarID *int64
+		_ = h.DB.Get(&avatarID, `SELECT avatar_attachment_id FROM alumni_profiles WHERE user_id = ?`, u.ID)
+		resp.HasAvatar = avatarID != nil
+		resp.AvatarURL = attachmentURL(h.DB, h.Storage, avatarID)
+	case resp.HasStudentProfile:
+		var avatarID *int64
+		_ = h.DB.Get(&avatarID, `SELECT avatar_attachment_id FROM student_profiles WHERE user_id = ?`, u.ID)
+		resp.HasAvatar = avatarID != nil
+		resp.AvatarURL = attachmentURL(h.DB, h.Storage, avatarID)
 	default:
-		resp.HasAvatar = true // gate never applies to Admin/SuperAdmin/Moderator
+		resp.HasAvatar = true // gate never applies to accounts with no profile row at all
+		resp.AvatarURL = attachmentURL(h.DB, h.Storage, u.AvatarAttachmentID)
 	}
 	httpx.JSON(w, http.StatusOK, resp)
+}
+
+type updateMeRequest struct {
+	FullName           string `json:"fullName"`
+	Phone              string `json:"phone"`
+	Bio                string `json:"bio"`
+	CurrentLocation    string `json:"currentLocation"`
+	BloodGroupID       *int64 `json:"bloodGroupId"`
+	AvatarAttachmentID *int64 `json:"avatarAttachmentId"`
+	CurrentDesignation string `json:"currentDesignation"`
+	PrivacyEmail       bool   `json:"privacyEmail"`
+	PrivacyPhone       bool   `json:"privacyPhone"`
+	PrivacyLocation    bool   `json:"privacyLocation"`
+	CurrentCompanyName string `json:"currentCompanyName"`
+	LinkedinURL        string `json:"linkedinUrl"`
+	WhatsappNumber     string `json:"whatsappNumber"`
+	WebsiteURL         string `json:"websiteUrl"`
+	PrivacyWhatsapp    bool   `json:"privacyWhatsapp"`
+	PrivacyCompany     bool   `json:"privacyCompany"`
+}
+
+// UpdateMe is the self-edit path for roles with no profile row (Admin/SuperAdmin/Moderator) —
+// alumni and students use AlumniHandler.UpdateMe / StudentHandler.UpdateMe instead, which cover
+// the same fields plus their alumni/student-only ones. Profile.tsx picks the right endpoint
+// based on role, but every role edits the same core set (name, phone, photo, bio, location,
+// blood group) — only email is ever read-only.
+func (h *AuthHandler) UpdateMe(w http.ResponseWriter, r *http.Request) {
+	u := auth.CurrentUser(r)
+	if u == nil {
+		httpx.Error(w, http.StatusUnauthorized, "authentication required")
+		return
+	}
+	var req updateMeRequest
+	if err := httpx.DecodeJSON(r, &req); err != nil {
+		httpx.Error(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	if req.FullName == "" {
+		httpx.Error(w, http.StatusBadRequest, "full name is required")
+		return
+	}
+	if req.Phone == "" {
+		// See AlumniHandler.UpdateMe for why this can't be allowed to go blank:
+		// users.phone has a UNIQUE(institution_id, phone) constraint.
+		httpx.Error(w, http.StatusBadRequest, "phone is required")
+		return
+	}
+
+	var conflictCount int
+	_ = h.DB.Get(&conflictCount, `SELECT COUNT(*) FROM users WHERE institution_id = ? AND phone = ? AND id != ?`,
+		u.InstitutionID, req.Phone, u.ID)
+	if conflictCount > 0 {
+		httpx.Error(w, http.StatusConflict, "phone number already in use")
+		return
+	}
+
+	if _, err := h.DB.Exec(`UPDATE users SET full_name = ?, phone = ?, bio = ?, current_location = ?,
+		blood_group_id = ?, avatar_attachment_id = ?, current_designation = ?,
+		privacy_email = ?, privacy_phone = ?, privacy_location = ?,
+		current_company_name = ?, linkedin_url = ?, whatsapp_number = ?, website_url = ?,
+		privacy_whatsapp = ?, privacy_company = ?, updated_at = datetime('now') WHERE id = ?`,
+		req.FullName, req.Phone, req.Bio, req.CurrentLocation, req.BloodGroupID, req.AvatarAttachmentID,
+		req.CurrentDesignation, req.PrivacyEmail, req.PrivacyPhone, req.PrivacyLocation,
+		req.CurrentCompanyName, req.LinkedinURL, req.WhatsappNumber, req.WebsiteURL,
+		req.PrivacyWhatsapp, req.PrivacyCompany, u.ID); err != nil {
+		httpx.Error(w, http.StatusInternalServerError, "update failed")
+		return
+	}
+	httpx.JSON(w, http.StatusOK, map[string]string{"message": "profile updated"})
 }
 
 type forgotPasswordRequest struct {

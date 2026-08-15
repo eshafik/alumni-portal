@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom'
-import { Home, Users, Calendar, Bell, MoreHorizontal } from 'lucide-react'
+import { Home, Users, Calendar, Briefcase, MoreHorizontal } from 'lucide-react'
 import { useAuth } from '../../hooks/useAuth'
 
 interface BottomTabBarProps {
@@ -15,7 +15,7 @@ export function BottomTabBar({ onMoreClick, moreOpen }: BottomTabBarProps) {
   const isApprovedMember = user?.status === 'approved'
 
   const secondTab = isApprovedMember
-    ? { to: '/directory', label: 'Directory', icon: Users }
+    ? { to: '/directory', label: 'Alumni', icon: Users }
     : { to: '/events', label: 'Events', icon: Calendar }
 
   const tabClass = ({ isActive }: { isActive: boolean }) =>
@@ -37,9 +37,9 @@ export function BottomTabBar({ onMoreClick, moreOpen }: BottomTabBarProps) {
         <secondTab.icon size={22} strokeWidth={2.25} />
         {secondTab.label}
       </NavLink>
-      <NavLink to="/notices" className={tabClass}>
-        <Bell size={22} strokeWidth={2.25} />
-        Notices
+      <NavLink to="/jobs" className={tabClass}>
+        <Briefcase size={22} strokeWidth={2.25} />
+        Jobs
       </NavLink>
       <button
         onClick={onMoreClick}

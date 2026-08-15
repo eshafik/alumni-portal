@@ -164,6 +164,7 @@ type alumniProfileDetail struct {
 	Phone              *string `db:"phone_out" json:"phone,omitempty"`
 	Whatsapp           *string `db:"whatsapp_out" json:"whatsapp,omitempty"`
 	CurrentLocation    *string `db:"current_location_out" json:"currentLocation,omitempty"`
+	SkillNames         string  `db:"skill_names" json:"skillNames,omitempty"`
 }
 
 func (h *AlumniHandler) Get(w http.ResponseWriter, r *http.Request) {
@@ -182,7 +183,9 @@ func (h *AlumniHandler) Get(w http.ResponseWriter, r *http.Request) {
 		CASE WHEN ap.privacy_email = 1 THEN u.email ELSE NULL END AS email_out,
 		CASE WHEN ap.privacy_phone = 1 THEN u.phone ELSE NULL END AS phone_out,
 		CASE WHEN ap.privacy_whatsapp = 1 THEN ap.whatsapp_number ELSE NULL END AS whatsapp_out,
-		CASE WHEN ap.privacy_location = 1 THEN ap.current_location ELSE NULL END AS current_location_out
+		CASE WHEN ap.privacy_location = 1 THEN ap.current_location ELSE NULL END AS current_location_out,
+		COALESCE((SELECT GROUP_CONCAT(DISTINCT s.name) FROM alumni_skills ask
+			JOIN skills s ON s.id = ask.skill_id WHERE ask.alumni_profile_id = ap.id), '') AS skill_names
 		FROM alumni_profiles ap
 		JOIN users u ON u.id = ap.user_id
 		JOIN batches b ON b.id = ap.batch_id

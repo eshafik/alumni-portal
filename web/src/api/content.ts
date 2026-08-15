@@ -125,4 +125,6 @@ export const businessesApi = {
   list: (q = '', page = 1) => api.get<PagedResult<Business>>(`/api/businesses?q=${encodeURIComponent(q)}&page=${page}`),
   get: (id: number) => api.get<Business>(`/api/businesses/${id}`),
   create: (payload: CreateBusinessPayload) => api.post<Business>('/api/businesses', payload),
+  update: (id: number, payload: CreateBusinessPayload) => api.put<Business>(`/api/businesses/${id}`, payload),
+  delete: (id: number) => api.delete(`/api/businesses/${id}`),
 }

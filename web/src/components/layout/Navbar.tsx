@@ -4,21 +4,20 @@ import { Menu, X, ChevronLeft } from 'lucide-react'
 import { useAuth } from '../../hooks/useAuth'
 import { useInstitution } from '../../hooks/useInstitution'
 import { ROLE } from '../../types/api'
-import { Button } from '../shared/ui'
+import { Avatar, Button } from '../shared/ui'
 
-// Public/anonymous visitors see only institutional content links. Alumni/Students/Jobs/
-// Businesses are member-only features (per spec, gated behind approved membership on the
-// backend too) and only appear once logged in as an approved member.
-const publicLinks = [
-  { to: '/events', label: 'Events' },
-  { to: '/notices', label: 'Notices' },
-  { to: '/committee', label: 'Committee' },
-]
-const memberLinks = [
-  { to: '/directory', label: 'Alumni' },
-  { to: '/students', label: 'Students' },
-  { to: '/jobs', label: 'Jobs' },
-  { to: '/businesses', label: 'Business Directory' },
+// Public/anonymous visitors see only institutional content links; Alumni/Jobs/Business
+// Directory/Students are member-only features (gated behind approved membership on the backend
+// too) and only appear once logged in as an approved member. Order matches the requested nav
+// order: Alumni, Jobs, Notices, Events, Business Directory, Students, Committee, (Admin below).
+const navLinks = [
+  { to: '/directory', label: 'Alumni', memberOnly: true },
+  { to: '/jobs', label: 'Jobs', memberOnly: true },
+  { to: '/notices', label: 'Notices', memberOnly: false },
+  { to: '/events', label: 'Events', memberOnly: false },
+  { to: '/businesses', label: 'Business Directory', memberOnly: true },
+  { to: '/students', label: 'Students', memberOnly: true },
+  { to: '/committee', label: 'Committee', memberOnly: false },
 ]
 
 export function Navbar() {
@@ -29,7 +28,7 @@ export function Navbar() {
   const navigate = useNavigate()
   const isApprovedMember = user?.status === 'approved'
   const isAdmin = user && (user.roleId === ROLE.SuperAdmin || user.roleId === ROLE.Admin || user.roleId === ROLE.Moderator)
-  const links = isApprovedMember ? [...publicLinks, ...memberLinks] : publicLinks
+  const links = navLinks.filter((l) => !l.memberOnly || isApprovedMember)
   const isTopLevel = location.pathname === '/'
 
   return (
@@ -60,8 +59,9 @@ export function Navbar() {
           <div className="flex items-center gap-2">
             {user ? (
               <>
-                <Link to="/profile" className="text-sm text-slate-600 hover:text-slate-900 px-2">
-                  {user.fullName}
+                <Link to="/profile" className="flex items-center gap-2 text-sm text-slate-600 hover:text-slate-900 pl-1 pr-2 py-1 rounded-full hover:bg-slate-50">
+                  <Avatar name={user.fullName} url={user.avatarUrl} size="sm" />
+                  <span className="max-w-[140px] truncate">{user.fullName}</span>
                 </Link>
                 <Button variant="secondary" onClick={logout}>
                   Log out
@@ -104,7 +104,11 @@ export function Navbar() {
 
         <div className="flex-1" />
 
-        {!user && (
+        {user ? (
+          <Link to="/profile" aria-label="My profile">
+            <Avatar name={user.fullName} url={user.avatarUrl} size="sm" />
+          </Link>
+        ) : (
           <button onClick={() => setOpen(!open)} className="p-1 text-slate-700" aria-label="Toggle menu">
             {open ? <X size={22} /> : <Menu size={22} />}
           </button>

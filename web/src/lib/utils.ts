@@ -34,3 +34,20 @@ export function formatDateTime(
 export function formatDate(raw: string, opts: Intl.DateTimeFormatOptions = { dateStyle: 'medium' }): string {
   return parseServerDate(raw).toLocaleDateString(undefined, { ...opts, timeZone: displayTimezone })
 }
+
+// User-entered URLs (website, LinkedIn, apply links, ...) are often saved without a scheme
+// ("linkedin.com/in/x"). A bare `<a href="linkedin.com/in/x">` resolves as relative to the
+// current page — clicking it appends the value to this app's own URL instead of navigating out.
+// Always route through this before using a stored URL as an href.
+export function normalizeExternalUrl(url: string): string {
+  const trimmed = url.trim()
+  if (!trimmed) return ''
+  return /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`
+}
+
+// Builds a wa.me deep link from a stored phone number, stripping everything but digits
+// (wa.me requires the number with country code and no punctuation/plus sign).
+export function waLink(number: string): string {
+  const digits = number.replace(/\D/g, '')
+  return `https://wa.me/${digits}`
+}

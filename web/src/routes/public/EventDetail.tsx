@@ -6,6 +6,7 @@ import { ApiError } from '../../api/client'
 import { useAuth } from '../../hooks/useAuth'
 import type { Event } from '../../types/api'
 import { Button, Card, Loading } from '../../components/shared/ui'
+import { normalizeExternalUrl } from '../../lib/utils'
 
 export default function EventDetail() {
   const { slug } = useParams()
@@ -112,7 +113,7 @@ export default function EventDetail() {
           {event.onlineUrl && (
             <p className="text-slate-500 mt-2 text-sm">
               Online:{' '}
-              <a href={event.onlineUrl} className="text-brand" target="_blank" rel="noreferrer">
+              <a href={normalizeExternalUrl(event.onlineUrl)} className="text-brand" target="_blank" rel="noreferrer">
                 {event.onlineUrl}
               </a>
             </p>
@@ -121,7 +122,7 @@ export default function EventDetail() {
 
           <div className="mt-6">
             {event.registrationUrl ? (
-              <a href={event.registrationUrl} target="_blank" rel="noopener noreferrer">
+              <a href={normalizeExternalUrl(event.registrationUrl)} target="_blank" rel="noopener noreferrer">
                 <Button>
                   Register <ExternalLink size={14} className="ml-1.5" />
                 </Button>

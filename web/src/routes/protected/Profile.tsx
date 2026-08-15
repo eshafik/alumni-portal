@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react'
-import { Loader2 } from 'lucide-react'
+import { Loader2, LogOut } from 'lucide-react'
 import { useAuth } from '../../hooks/useAuth'
 import { api, ApiError } from '../../api/client'
 import { authApi } from '../../api/auth'
@@ -49,8 +49,16 @@ const emptyForm: FormState = {
 }
 
 export default function Profile() {
-  const { user, refresh } = useAuth()
-  const isAlumni = user?.roleId === ROLE.Alumni
+  const { user, refresh, logout } = useAuth()
+  // Row existence, not current roleId, decides which endpoint owns this account's profile — a
+  // promoted Admin/Moderator keeps their original alumni_profiles row and must keep
+  // editing/searching through it (see AuthHandler.Me). Alumni takes precedence over student
+  // when both rows exist (post-conversion accounts keep the old student_profiles row too).
+  const isAlumni = user?.hasAlumniProfile ?? user?.roleId === ROLE.Alumni
+  const isStudent = !isAlumni && (user?.hasStudentProfile ?? user?.roleId === ROLE.Student)
+  // Roles with neither row (never-alumni, never-student Admin/SuperAdmin/Moderator) only ever
+  // edit fullName/phone/etc on the users table itself (see AuthHandler.UpdateMe).
+  const hasProfileRow = isAlumni || isStudent
   const [form, setForm] = useState<FormState>(emptyForm)
   const [avatarUrl, setAvatarUrl] = useState<string | undefined>()
   const [bloodGroups, setBloodGroups] = useState<BloodGroup[]>([])
@@ -67,6 +75,33 @@ export default function Profile() {
 
   useEffect(() => {
     configApi.bloodGroups().then((bg) => setBloodGroups(bg ?? []))
+    if (!hasProfileRow) {
+      // Admin/SuperAdmin/Moderator: no alumni_profiles/student_profiles row, but they do have
+      // avatar/bio/location/blood group on the users table now (see AuthHandler.UpdateMe) — the
+      // session's own user object already carries all of it, no extra fetch needed.
+      setForm((f) => ({
+        ...f,
+        fullName: user?.fullName ?? '',
+        phone: user?.phone ?? '',
+        bio: user?.bio ?? '',
+        currentLocation: user?.currentLocation ?? '',
+        bloodGroupId: user?.bloodGroupId ? String(user.bloodGroupId) : '',
+        avatarAttachmentId: user?.avatarAttachmentId ?? null,
+        currentDesignation: user?.currentDesignation ?? '',
+        privacyEmail: user?.privacyEmail ?? true,
+        privacyPhone: user?.privacyPhone ?? true,
+        privacyLocation: user?.privacyLocation ?? true,
+        currentCompanyName: user?.currentCompanyName ?? '',
+        linkedinUrl: user?.linkedinUrl ?? '',
+        whatsappNumber: user?.whatsappNumber ?? '',
+        websiteUrl: user?.websiteUrl ?? '',
+        privacyWhatsapp: user?.privacyWhatsapp ?? true,
+        privacyCompany: user?.privacyCompany ?? true,
+      }))
+      setAvatarUrl(user?.avatarUrl)
+      setLoading(false)
+      return
+    }
     const load = isAlumni ? alumniApi.getMe() : api.get('/api/students/me')
     load
       .then((data: any) => {
@@ -94,7 +129,29 @@ export default function Profile() {
       .catch(() => setError('Could not load your profile — please refresh and try again.'))
       .finally(() => setLoading(false))
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAlumni])
+  }, [isAlumni, hasProfileRow])
+
+  // Shared by both "Save changes" and "Save privacy settings" for Admin/SuperAdmin/Moderator —
+  // those roles have one flat users-table record, unlike alumni which splits profile vs.
+  // privacy across two calls to the same alumniApi.updateMe endpoint.
+  const nonProfilePayload = () => ({
+    fullName: form.fullName,
+    phone: form.phone,
+    bio: form.bio,
+    currentLocation: form.currentLocation,
+    bloodGroupId: form.bloodGroupId ? Number(form.bloodGroupId) : null,
+    avatarAttachmentId: form.avatarAttachmentId,
+    currentDesignation: form.currentDesignation,
+    privacyEmail: form.privacyEmail,
+    privacyPhone: form.privacyPhone,
+    privacyLocation: form.privacyLocation,
+    currentCompanyName: form.currentCompanyName,
+    linkedinUrl: form.linkedinUrl,
+    whatsappNumber: form.whatsappNumber,
+    websiteUrl: form.websiteUrl,
+    privacyWhatsapp: form.privacyWhatsapp,
+    privacyCompany: form.privacyCompany,
+  })
 
   const saveProfile = async () => {
     setSaved(false)
@@ -106,7 +163,7 @@ export default function Profile() {
           ...form,
           bloodGroupId: form.bloodGroupId ? Number(form.bloodGroupId) : null,
         })
-      } else {
+      } else if (isStudent) {
         await api.put('/api/students/me', {
           fullName: form.fullName,
           phone: form.phone,
@@ -114,6 +171,8 @@ export default function Profile() {
           bloodGroupId: form.bloodGroupId ? Number(form.bloodGroupId) : null,
           avatarAttachmentId: form.avatarAttachmentId,
         })
+      } else {
+        await authApi.updateMe(nonProfilePayload())
       }
       await refresh()
       setSaved(true)
@@ -138,10 +197,14 @@ export default function Profile() {
     setPrivacyError('')
     setPrivacySaving(true)
     try {
-      await alumniApi.updateMe({
-        ...form,
-        bloodGroupId: form.bloodGroupId ? Number(form.bloodGroupId) : null,
-      })
+      if (isAlumni) {
+        await alumniApi.updateMe({
+          ...form,
+          bloodGroupId: form.bloodGroupId ? Number(form.bloodGroupId) : null,
+        })
+      } else {
+        await authApi.updateMe(nonProfilePayload())
+      }
       await refresh()
       setPrivacySaved(true)
     } catch (err) {
@@ -190,15 +253,23 @@ export default function Profile() {
             />
           </div>
 
+          <div>
+            <label className="text-sm font-medium block mb-1 text-slate-700">Email</label>
+            <Input value={user?.email ?? ''} disabled className="bg-slate-50 text-slate-500" />
+          </div>
+
           <Input placeholder="Full name" required value={form.fullName} onChange={set('fullName')} />
           <PhoneInput required value={form.phone} onChange={(v) => setForm((f) => ({ ...f, phone: v }))} />
 
-          {isAlumni && (
+          {!isStudent && (
+            <div>
+              <label className="text-sm font-medium block mb-1">Bio</label>
+              <textarea className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" rows={3} value={form.bio} onChange={set('bio')} />
+            </div>
+          )}
+
+          {(isAlumni || !hasProfileRow) && (
             <>
-              <div>
-                <label className="text-sm font-medium block mb-1">Bio</label>
-                <textarea className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" rows={3} value={form.bio} onChange={set('bio')} />
-              </div>
               <Input placeholder="Current designation" value={form.currentDesignation} onChange={set('currentDesignation')} />
               <Input placeholder="Current organization" value={form.currentCompanyName} onChange={set('currentCompanyName')} />
               <Input placeholder="LinkedIn URL" value={form.linkedinUrl} onChange={set('linkedinUrl')} />
@@ -247,7 +318,7 @@ export default function Profile() {
         </form>
       </Card>
 
-      {isAlumni && (
+      {(isAlumni || !hasProfileRow) && (
         <Card className="mt-4">
           <p className="text-sm font-medium mb-1">Who can see your contact info</p>
           <p className="text-xs text-slate-400 mb-3">Visible to other approved members by default. Uncheck any field you'd rather keep private.</p>
@@ -275,6 +346,10 @@ export default function Profile() {
           </Button>
         </Card>
       )}
+
+      <Button variant="secondary" className="mt-6 w-full text-red-600 hover:bg-red-50" onClick={logout}>
+        <LogOut size={15} className="mr-1.5" /> Log out
+      </Button>
     </div>
   )
 }
