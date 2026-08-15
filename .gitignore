@@ -1,5 +1,7 @@
 data/
 dist/
+.claude/
+CLAUDE.md
 web/node_modules/
 web/dev-dist/
 *.log

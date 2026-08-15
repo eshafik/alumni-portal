@@ -27,7 +27,8 @@ export const adminApi = {
     api.put(`/api/admin/users/${userId}/role`, { roleId, moderatorScopeDepartmentId: moderatorScopeDepartmentId ?? null, moderatorScopeBatchId: moderatorScopeBatchId ?? null }),
   updateUserStatus: (userId: number, status: string, reason = '') =>
     api.put(`/api/admin/users/${userId}/status`, { status, reason }),
-  convertBatchToAlumni: (batchId: number) => api.post(`/api/admin/batches/${batchId}/convert-to-alumni`),
+  convertBatchToAlumni: (batchId: number) => api.post<{ message: string; count: number }>(`/api/admin/batches/${batchId}/convert-to-alumni`),
+  revertBatchConversion: (batchId: number) => api.post(`/api/admin/batches/${batchId}/revert-conversion`),
   updateInstitution: (payload: Partial<Institution>) => api.put('/api/admin/institution', payload),
   createGalleryImage: (attachmentId: number, caption: string, sortOrder: number) =>
     api.post<GalleryImage>('/api/admin/home-gallery', { attachmentId, caption, sortOrder }),

@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { businessesApi } from '../../api/content'
 import type { Business } from '../../types/api'
 import { ROLE } from '../../types/api'
-import { Button, Card, Input, Loading, EmptyState, Pagination } from '../../components/shared/ui'
+import { Avatar, Button, Card, Input, Loading, EmptyState, Pagination } from '../../components/shared/ui'
 import { useDebounce } from '../../hooks/useDebounce'
 import { useAuth } from '../../hooks/useAuth'
 
@@ -52,6 +52,12 @@ export default function BusinessesList() {
                 <p className="font-medium">{b.name}</p>
                 <p className="text-xs text-slate-400">{b.category}</p>
                 <p className="text-sm text-slate-600 mt-2 line-clamp-2">{b.description}</p>
+                {b.ownerName && (
+                  <div className="mt-3 pt-3 border-t border-slate-100 flex items-center gap-2">
+                    <Avatar name={b.ownerName} url={b.ownerAvatarUrl} size="sm" />
+                    <span className="text-xs text-slate-500">By {b.ownerName}</span>
+                  </div>
+                )}
               </Card>
             </Link>
           ))}

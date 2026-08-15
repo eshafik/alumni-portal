@@ -69,6 +69,8 @@ export interface Batch {
   startYear: number
   endYear: number
   label: string
+  activeStudentCount?: number
+  convertedStudentCount?: number
 }
 
 export interface BloodGroup {
@@ -155,6 +157,7 @@ export interface JobPost {
 
 export interface Business {
   id: number
+  ownerUserId: number
   name: string
   category: string
   description: string
@@ -163,6 +166,9 @@ export interface Business {
   contactPhone: string
   contactEmail: string
   logoAttachmentId?: number
+  logoUrl?: string
+  ownerName?: string
+  ownerAvatarUrl?: string
 }
 
 export interface Committee {

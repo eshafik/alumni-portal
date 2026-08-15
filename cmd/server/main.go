@@ -78,7 +78,7 @@ func main() {
 	jobHandler := &handlers.JobHandler{DB: dbx, Storage: store}
 	noticeHandler := &handlers.NoticeHandler{DB: dbx, Storage: store}
 	eventHandler := &handlers.EventHandler{DB: dbx, Storage: store, PublicBaseURL: cfg.PublicBaseURL}
-	businessHandler := &handlers.BusinessHandler{DB: dbx}
+	businessHandler := &handlers.BusinessHandler{DB: dbx, Storage: store}
 	notificationHandler := &handlers.NotificationHandler{DB: dbx}
 	uploadHandler := &handlers.UploadHandler{DB: dbx, Storage: store}
 

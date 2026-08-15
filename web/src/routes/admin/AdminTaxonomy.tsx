@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Pencil, Trash2, Check, X, Plus, Loader2 } from 'lucide-react'
+import { Pencil, Trash2, Check, X, Plus, Loader2, GraduationCap, Undo2 } from 'lucide-react'
 import { configApi } from '../../api/directory'
 import { taxonomyApi } from '../../api/taxonomy'
-import type { Department, Program, Batch, BloodGroup } from '../../types/api'
+import { adminApi } from '../../api/admin'
+import { api, ApiError } from '../../api/client'
+import type { Department, Program, Batch, BloodGroup, PagedResult } from '../../types/api'
 import { Button, Card, Input, Select, Loading } from '../../components/shared/ui'
 import { useConfirm } from '../../hooks/useConfirm'
 
@@ -351,6 +353,8 @@ function BatchPanel({ programs, batches, onChange }: { programs: Program[]; batc
   const [editEnd, setEditEnd] = useState('')
   const [editLabel, setEditLabel] = useState('')
   const [saving, setSaving] = useState(false)
+  const [convertingId, setConvertingId] = useState<number | null>(null)
+  const [batchMessage, setBatchMessage] = useState<{ id: number; text: string; error?: boolean } | null>(null)
 
   const programName = useMemo(() => {
     const map = new Map(programs.map((p) => [p.id, p.name]))
@@ -389,10 +393,59 @@ function BatchPanel({ programs, batches, onChange }: { programs: Program[]; batc
     onChange()
   }
 
+  const convertToAlumni = async (b: Batch) => {
+    setBatchMessage(null)
+    let activeCount = 0
+    try {
+      const res = await api.get<PagedResult<unknown>>(`/api/students?batchId=${b.id}&page=1`)
+      activeCount = res.total
+    } catch {
+      // Count is best-effort context for the confirm dialog — proceed without it if it fails.
+    }
+    const ok = await confirm({
+      description:
+        activeCount > 0
+          ? `Convert ${activeCount} active student(s) in "${b.label || b.startYear}" to alumni? They gain full alumni access (directory, job posting, etc.) immediately. This can be reverted.`
+          : `Convert batch "${b.label || b.startYear}" to alumni? This can be reverted.`,
+      confirmLabel: 'Convert to alumni',
+    })
+    if (!ok) return
+    setConvertingId(b.id)
+    try {
+      const res = await adminApi.convertBatchToAlumni(b.id)
+      setBatchMessage({ id: b.id, text: `Converted ${res.count} student(s) to alumni.` })
+      onChange()
+    } catch (err) {
+      setBatchMessage({ id: b.id, text: err instanceof ApiError ? err.message : 'Conversion failed', error: true })
+    } finally {
+      setConvertingId(null)
+    }
+  }
+
+  const revertConversion = async (b: Batch) => {
+    setBatchMessage(null)
+    const ok = await confirm({
+      description: `Revert the most recent alumni conversion for "${b.label || b.startYear}"? Converted members go back to student status and lose alumni access.`,
+      confirmLabel: 'Revert',
+      danger: true,
+    })
+    if (!ok) return
+    setConvertingId(b.id)
+    try {
+      await adminApi.revertBatchConversion(b.id)
+      setBatchMessage({ id: b.id, text: 'Batch conversion reverted.' })
+      onChange()
+    } catch (err) {
+      setBatchMessage({ id: b.id, text: err instanceof ApiError ? err.message : 'Revert failed', error: true })
+    } finally {
+      setConvertingId(null)
+    }
+  }
+
   return (
     <PanelShell
       title="Batches"
-      description="Year ranges within a program, e.g. 2018–2022."
+      description="Year ranges within a program, e.g. 2018–2022. Use the cap icon to convert a graduating batch's active students to alumni membership; the undo icon reverts the most recent conversion."
       toolbar={
         <div className="flex flex-wrap gap-2">
           <Select value={programId} onChange={(e) => setProgramId(e.target.value)} className="max-w-[180px]">
@@ -446,10 +499,38 @@ function BatchPanel({ programs, batches, onChange }: { programs: Program[]; batc
               </tr>
             ) : (
               <tr key={b.id} className="hover:bg-slate-50">
-                <td className="px-4 py-2.5 font-medium text-slate-800">{b.label || `${b.startYear}–${b.endYear}`}</td>
+                <td className="px-4 py-2.5 font-medium text-slate-800">
+                  <div className="flex items-center gap-2">
+                    <span>{b.label || `${b.startYear}–${b.endYear}`}</span>
+                    <BatchStatusBadge batch={b} />
+                  </div>
+                  {batchMessage?.id === b.id && (
+                    <p className={`text-xs mt-0.5 ${batchMessage.error ? 'text-red-600' : 'text-green-600'}`}>{batchMessage.text}</p>
+                  )}
+                </td>
                 <td className="px-4 py-2.5 text-slate-500">{programName(b.programId)}</td>
                 <td className="px-4 py-2.5">
-                  <RowActions onEdit={() => startEdit(b)} onDelete={() => remove(b)} />
+                  <div className="flex items-center justify-end gap-1">
+                    <button
+                      onClick={() => convertToAlumni(b)}
+                      disabled={convertingId === b.id || b.activeStudentCount === 0}
+                      className="p-1.5 rounded-md text-slate-400 hover:text-brand hover:bg-blue-50 disabled:opacity-30"
+                      title={b.activeStudentCount === 0 ? 'No active students left to convert' : 'Convert batch to alumni'}
+                      aria-label="Convert batch to alumni"
+                    >
+                      {convertingId === b.id ? <Loader2 size={15} className="animate-spin" /> : <GraduationCap size={15} />}
+                    </button>
+                    <button
+                      onClick={() => revertConversion(b)}
+                      disabled={convertingId === b.id || !b.convertedStudentCount}
+                      className="p-1.5 rounded-md text-slate-400 hover:text-amber-600 hover:bg-amber-50 disabled:opacity-30"
+                      title={!b.convertedStudentCount ? 'Nothing converted yet' : 'Revert last alumni conversion'}
+                      aria-label="Revert last alumni conversion"
+                    >
+                      <Undo2 size={15} />
+                    </button>
+                    <RowActions onEdit={() => startEdit(b)} onDelete={() => remove(b)} />
+                  </div>
                 </td>
               </tr>
             ),
@@ -458,6 +539,31 @@ function BatchPanel({ programs, batches, onChange }: { programs: Program[]; batc
       </table>
     </PanelShell>
   )
+}
+
+// Reflects each batch's conversion state so admins can tell a currently-running batch apart
+// from one already converted to alumni without opening the student directory.
+function BatchStatusBadge({ batch }: { batch: Batch }) {
+  const active = batch.activeStudentCount ?? 0
+  const converted = batch.convertedStudentCount ?? 0
+  if (converted > 0 && active === 0) {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium bg-emerald-100 text-emerald-800">
+        <GraduationCap size={11} /> Alumni
+      </span>
+    )
+  }
+  if (converted > 0 && active > 0) {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium bg-amber-100 text-amber-800">
+        Partially converted
+      </span>
+    )
+  }
+  if (active > 0) {
+    return <span className="inline-block rounded-full px-2 py-0.5 text-xs font-medium bg-slate-100 text-slate-600">Running</span>
+  }
+  return null
 }
 
 function YearSelect({ value, onChange, placeholder }: { value: string; onChange: (v: string) => void; placeholder: string }) {

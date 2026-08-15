@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { Link, useParams } from 'react-router-dom'
 import { businessesApi } from '../../api/content'
 import type { Business } from '../../types/api'
-import { Card, Loading } from '../../components/shared/ui'
+import { Avatar, Card, Loading } from '../../components/shared/ui'
 
 export default function BusinessDetail() {
   const { id } = useParams()
@@ -25,6 +25,12 @@ export default function BusinessDetail() {
       <Card>
         <h1 className="text-2xl font-semibold">{business.name}</h1>
         <p className="text-slate-500">{business.category}</p>
+        {business.ownerName && (
+          <Link to={`/directory/${business.ownerUserId}`} className="inline-flex items-center gap-2 mt-3 group">
+            <Avatar name={business.ownerName} url={business.ownerAvatarUrl} size="sm" />
+            <span className="text-sm text-slate-600 group-hover:text-brand">Listed by {business.ownerName}</span>
+          </Link>
+        )}
         {business.description && <p className="mt-4 text-slate-700 whitespace-pre-wrap">{business.description}</p>}
         <dl className="mt-4 grid grid-cols-2 gap-3 text-sm">
           {business.location && (

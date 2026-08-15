@@ -31,6 +31,7 @@ export function InstitutionProvider({ children }: { children: ReactNode }) {
       // branding applies site-wide without a rebuild.
       if (res.institution.themeColor) {
         document.documentElement.style.setProperty('--color-brand', res.institution.themeColor)
+        document.documentElement.style.setProperty('--color-brand-dark', `color-mix(in srgb, ${res.institution.themeColor} 80%, black)`)
       }
     } finally {
       setLoading(false)

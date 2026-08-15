@@ -1,5 +1,6 @@
 import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode } from 'react'
 import { cn } from '../../lib/utils'
+import { useInView } from '../../hooks/useInView'
 
 export function Button({ className, variant = 'primary', ...props }: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: 'primary' | 'secondary' | 'ghost' | 'danger' }) {
   const variants = {
@@ -149,6 +150,28 @@ export function EmptyState({ title, description }: { title: string; description?
 
 export function Loading() {
   return <div className="text-center py-12 text-slate-400 text-sm">Loading...</div>
+}
+
+// Scroll-triggered entrance: fades/slides children in once they enter the viewport.
+// `tag` lets callers keep semantic elements (e.g. `<Reveal tag="section">`) without an extra wrapper div.
+export function Reveal({
+  children,
+  className,
+  delayMs = 0,
+  tag = 'div',
+}: {
+  children: ReactNode
+  className?: string
+  delayMs?: number
+  tag?: keyof HTMLElementTagNameMap
+}) {
+  const [ref, inView] = useInView<HTMLElement>()
+  const Tag = tag as unknown as 'div'
+  return (
+    <Tag ref={ref as never} className={cn('reveal', inView && 'reveal-in', className)} style={{ transitionDelay: `${delayMs}ms` }}>
+      {children}
+    </Tag>
+  )
 }
 
 export function Badge({ children, tone = 'default' }: { children: ReactNode; tone?: 'default' | 'urgent' | 'important' }) {

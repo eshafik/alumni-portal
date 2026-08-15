@@ -11,10 +11,40 @@ import (
 	"alumni-portal/internal/auth"
 	"alumni-portal/internal/httpx"
 	"alumni-portal/internal/models"
+	"alumni-portal/internal/storage"
 )
 
 type BusinessHandler struct {
-	DB *sqlx.DB
+	DB      *sqlx.DB
+	Storage storage.Driver
+}
+
+type businessResponse struct {
+	models.Business
+	LogoURL        string `json:"logoUrl,omitempty"`
+	OwnerName      string `json:"ownerName,omitempty"`
+	OwnerAvatarURL string `json:"ownerAvatarUrl,omitempty"`
+}
+
+// withOwnerInfo attaches the owner's display name/avatar so the business directory can show
+// and link to the author — same COALESCE-across-both-profile-tables pattern as
+// JobHandler.withImageURL, since an owner may be Alumni, Admin, or SuperAdmin.
+func (h *BusinessHandler) withOwnerInfo(b models.Business) businessResponse {
+	resp := businessResponse{Business: b, LogoURL: attachmentURL(h.DB, h.Storage, b.LogoAttachmentID)}
+	var owner struct {
+		FullName           string `db:"full_name"`
+		AvatarAttachmentID *int64 `db:"avatar_attachment_id"`
+	}
+	err := h.DB.Get(&owner, `SELECT u.full_name, COALESCE(ap.avatar_attachment_id, sp.avatar_attachment_id) AS avatar_attachment_id
+		FROM users u
+		LEFT JOIN alumni_profiles ap ON ap.user_id = u.id
+		LEFT JOIN student_profiles sp ON sp.user_id = u.id
+		WHERE u.id = ?`, b.OwnerUserID)
+	if err == nil {
+		resp.OwnerName = owner.FullName
+		resp.OwnerAvatarURL = attachmentURL(h.DB, h.Storage, owner.AvatarAttachmentID)
+	}
+	return resp
 }
 
 func (h *BusinessHandler) List(w http.ResponseWriter, r *http.Request) {
@@ -43,7 +73,11 @@ func (h *BusinessHandler) List(w http.ResponseWriter, r *http.Request) {
 		httpx.Error(w, http.StatusInternalServerError, "list failed")
 		return
 	}
-	httpx.JSON(w, http.StatusOK, httpx.PagedResult{Items: businesses, Page: pg.Page, PageSize: pg.PageSize, Total: total})
+	items := make([]businessResponse, len(businesses))
+	for i, b := range businesses {
+		items[i] = h.withOwnerInfo(b)
+	}
+	httpx.JSON(w, http.StatusOK, httpx.PagedResult{Items: items, Page: pg.Page, PageSize: pg.PageSize, Total: total})
 }
 
 func (h *BusinessHandler) Get(w http.ResponseWriter, r *http.Request) {
@@ -57,7 +91,7 @@ func (h *BusinessHandler) Get(w http.ResponseWriter, r *http.Request) {
 		httpx.Error(w, http.StatusNotFound, "business not found")
 		return
 	}
-	httpx.JSON(w, http.StatusOK, b)
+	httpx.JSON(w, http.StatusOK, h.withOwnerInfo(b))
 }
 
 type upsertBusinessRequest struct {
@@ -96,5 +130,5 @@ func (h *BusinessHandler) Create(w http.ResponseWriter, r *http.Request) {
 	id, _ := res.LastInsertId()
 	var b models.Business
 	_ = h.DB.Get(&b, `SELECT * FROM businesses WHERE id = ?`, id)
-	httpx.JSON(w, http.StatusCreated, b)
+	httpx.JSON(w, http.StatusCreated, h.withOwnerInfo(b))
 }

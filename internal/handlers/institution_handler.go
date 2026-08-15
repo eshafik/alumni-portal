@@ -249,14 +249,29 @@ func (h *InstitutionHandler) DeleteProgram(w http.ResponseWriter, r *http.Reques
 
 // --- Batches ---
 
+type batchResponse struct {
+	models.Batch
+	ActiveStudentCount    int `db:"active_student_count" json:"activeStudentCount"`
+	ConvertedStudentCount int `db:"converted_student_count" json:"convertedStudentCount"`
+}
+
+// ListBatches annotates each batch with active vs. converted student counts so the admin UI
+// can distinguish a currently-running batch from one already converted to alumni (AdminTaxonomy's
+// BatchPanel uses this to show the right icon/badge) without a separate round trip.
 func (h *InstitutionHandler) ListBatches(w http.ResponseWriter, r *http.Request) {
 	programID := r.URL.Query().Get("programId")
-	batches := []models.Batch{}
+	batches := []batchResponse{}
+	baseQuery := `SELECT b.*,
+		COALESCE(sp_active.cnt, 0) AS active_student_count,
+		COALESCE(sp_conv.cnt, 0) AS converted_student_count
+		FROM batches b
+		LEFT JOIN (SELECT batch_id, COUNT(*) AS cnt FROM student_profiles WHERE status = 'active' GROUP BY batch_id) sp_active ON sp_active.batch_id = b.id
+		LEFT JOIN (SELECT batch_id, COUNT(*) AS cnt FROM student_profiles WHERE status = 'converted' GROUP BY batch_id) sp_conv ON sp_conv.batch_id = b.id`
 	var err error
 	if programID != "" {
-		err = h.DB.Select(&batches, `SELECT * FROM batches WHERE program_id = ? AND is_active = 1 ORDER BY start_year DESC`, programID)
+		err = h.DB.Select(&batches, baseQuery+` WHERE b.program_id = ? AND b.is_active = 1 ORDER BY b.start_year DESC`, programID)
 	} else {
-		err = h.DB.Select(&batches, `SELECT * FROM batches WHERE is_active = 1 ORDER BY start_year DESC`)
+		err = h.DB.Select(&batches, baseQuery+` WHERE b.is_active = 1 ORDER BY b.start_year DESC`)
 	}
 	if err != nil {
 		httpx.Error(w, http.StatusInternalServerError, "failed to list batches")
