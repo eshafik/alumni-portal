@@ -190,10 +190,10 @@ export default function Home() {
   let committeeIndex = -1
 
   return (
-    <div className="space-y-16 pb-8">
+    <div className="space-y-10 pb-8">
       {/* Hero — single code path for gallery / no-gallery, always white-on-gradient */}
       <Reveal tag="section" className="text-center pt-4">
-        <div className="relative mb-8 -mx-4 sm:mx-0 sm:rounded-2xl bg-gradient-to-br from-brand via-brand to-indigo-950 py-16 sm:py-20 px-6 text-white overflow-hidden">
+        <div className="relative -mx-4 sm:mx-0 sm:rounded-2xl bg-gradient-to-br from-brand via-brand to-indigo-950 py-16 sm:py-20 px-6 text-white overflow-hidden">
           <div
             ref={heroRef}
             className="pointer-events-none absolute -top-24 -left-16 w-72 h-72 rounded-full bg-white/10 blur-3xl"
@@ -412,13 +412,15 @@ export default function Home() {
           <div className="space-y-3">
             {notices.map((n, i) => (
               <Reveal key={n.id} delayMs={Math.min(i, 6) * 50}>
-                <Card className="flex items-start justify-between gap-4 hover:shadow-sm transition-shadow">
-                  <div>
-                    <p className="font-medium">{n.title}</p>
-                    <p className="text-sm text-slate-500 mt-1 line-clamp-2">{n.body}</p>
-                  </div>
-                  {n.importance !== 'normal' && <Badge tone={n.importance as 'important' | 'urgent'}>{n.importance}</Badge>}
-                </Card>
+                <Link to={`/notices/${n.id}`}>
+                  <Card className="flex items-start justify-between gap-4 hover:shadow-sm hover:border-brand/30 transition-all">
+                    <div>
+                      <p className="font-medium">{n.title}</p>
+                      <p className="text-sm text-slate-500 mt-1 line-clamp-2">{n.body}</p>
+                    </div>
+                    {n.importance !== 'normal' && <Badge tone={n.importance as 'important' | 'urgent'}>{n.importance}</Badge>}
+                  </Card>
+                </Link>
               </Reveal>
             ))}
           </div>
