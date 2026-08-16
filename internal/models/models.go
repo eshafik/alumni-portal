@@ -77,6 +77,8 @@ type User struct {
 	WebsiteURL                 string  `db:"website_url" json:"websiteUrl"`
 	PrivacyWhatsapp            bool    `db:"privacy_whatsapp" json:"privacyWhatsapp"`
 	PrivacyCompany             bool    `db:"privacy_company" json:"privacyCompany"`
+	StudentID                  string  `db:"student_id" json:"studentId"`
+	PassingYear                *int64  `db:"passing_year" json:"passingYear,omitempty"`
 }
 
 type Department struct {
@@ -108,10 +110,11 @@ type BloodGroup struct {
 type Batch struct {
 	ID        int64  `db:"id" json:"id"`
 	ProgramID int64  `db:"program_id" json:"programId"`
-	StartYear int    `db:"start_year" json:"startYear"`
-	EndYear   int    `db:"end_year" json:"endYear"`
+	StartYear *int   `db:"start_year" json:"startYear,omitempty"`
+	EndYear   *int   `db:"end_year" json:"endYear,omitempty"`
 	Label     string `db:"label" json:"label"`
 	IsActive  bool   `db:"is_active" json:"isActive"`
+	SortOrder int    `db:"sort_order" json:"sortOrder"`
 	CreatedAt string `db:"created_at" json:"createdAt"`
 }
 

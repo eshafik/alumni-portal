@@ -46,6 +46,8 @@ type signupRequest struct {
 	AccountType        string `json:"accountType"`        // "alumni" | "student"
 	CurrentDesignation string `json:"currentDesignation"` // alumni only, optional
 	CompanyName        string `json:"companyName"`        // alumni only, optional
+	StudentID          string `json:"studentId"`          // required for student, optional for alumni
+	PassingYear        *int64 `json:"passingYear"`        // required for alumni, hidden/unused for student
 }
 
 // Signup creates a pending_verification user + profile row and emails an OTP.
@@ -68,6 +70,14 @@ func (h *AuthHandler) Signup(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.BloodGroupID == 0 {
 		httpx.Error(w, http.StatusBadRequest, "blood group is required")
+		return
+	}
+	if req.AccountType == "alumni" && req.PassingYear == nil {
+		httpx.Error(w, http.StatusBadRequest, "passing year is required")
+		return
+	}
+	if req.AccountType == "student" && req.StudentID == "" {
+		httpx.Error(w, http.StatusBadRequest, "student ID is required")
 		return
 	}
 
@@ -117,9 +127,10 @@ func (h *AuthHandler) Signup(w http.ResponseWriter, r *http.Request) {
 	defer tx.Rollback()
 
 	res, err := tx.Exec(
-		`INSERT INTO users (institution_id, role_id, full_name, email, phone, password_hash, status)
-		 VALUES (?, ?, ?, ?, ?, ?, ?)`,
+		`INSERT INTO users (institution_id, role_id, full_name, email, phone, password_hash, status, student_id, passing_year)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		institutionID, roleID, req.FullName, req.Email, req.Phone, passwordHash, models.StatusPendingVerification,
+		req.StudentID, req.PassingYear,
 	)
 	if err != nil {
 		httpx.Error(w, http.StatusInternalServerError, "signup failed")
@@ -241,6 +252,14 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	if !auth.VerifyPassword(u.PasswordHash, req.Password) {
 		httpx.Error(w, http.StatusUnauthorized, "invalid email or password")
 		return
+	}
+	// Quiet upgrade: an imported Django (PBKDF2) hash verifies fine forever, but once we've
+	// seen the plaintext (right here, on a successful login) we can transparently re-hash it
+	// with bcrypt so the account converges onto this app's own scheme without any reset flow.
+	if auth.IsDjangoHash(u.PasswordHash) {
+		if newHash, err := auth.HashPassword(req.Password); err == nil {
+			_, _ = h.DB.Exec(`UPDATE users SET password_hash = ? WHERE id = ?`, newHash, u.ID)
+		}
 	}
 	switch u.Status {
 	case models.StatusPendingVerification:

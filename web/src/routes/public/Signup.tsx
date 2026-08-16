@@ -20,6 +20,8 @@ export default function Signup() {
   const [bloodGroupId, setBloodGroupId] = useState('')
   const [currentDesignation, setCurrentDesignation] = useState('')
   const [companyName, setCompanyName] = useState('')
+  const [studentId, setStudentId] = useState('')
+  const [passingYear, setPassingYear] = useState('')
   const [departments, setDepartments] = useState<Department[]>([])
   const [programs, setPrograms] = useState<Program[]>([])
   const [batches, setBatches] = useState<Batch[]>([])
@@ -59,7 +61,10 @@ export default function Signup() {
         programId: Number(programId),
         batchId: Number(batchId),
         bloodGroupId: Number(bloodGroupId),
-        ...(accountType === 'alumni' ? { currentDesignation, companyName } : {}),
+        studentId,
+        ...(accountType === 'alumni'
+          ? { currentDesignation, companyName, passingYear: Number(passingYear) }
+          : {}),
       })
       setMessage('Account created! Check your email for a verification code.')
       setTimeout(
@@ -129,8 +134,16 @@ export default function Signup() {
               ))}
             </select>
 
+            <Input
+              placeholder={accountType === 'student' ? 'Student ID' : 'Student ID (optional)'}
+              required={accountType === 'student'}
+              value={studentId}
+              onChange={(e) => setStudentId(e.target.value)}
+            />
+
             {accountType === 'alumni' && (
               <>
+                <Input type="number" placeholder="Passing year" required value={passingYear} onChange={(e) => setPassingYear(e.target.value)} />
                 <Input placeholder="Current designation (optional)" value={currentDesignation} onChange={(e) => setCurrentDesignation(e.target.value)} />
                 <Input placeholder="Current organization (optional)" value={companyName} onChange={(e) => setCompanyName(e.target.value)} />
               </>

@@ -13,6 +13,8 @@ export interface SignupPayload {
   accountType: 'alumni' | 'student'
   currentDesignation?: string
   companyName?: string
+  studentId?: string
+  passingYear?: number
 }
 
 // cooldownSeconds is the server's authoritative "seconds until the next resend is allowed" —

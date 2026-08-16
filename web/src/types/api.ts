@@ -32,6 +32,8 @@ export interface User {
   websiteUrl?: string
   privacyWhatsapp?: boolean
   privacyCompany?: boolean
+  studentId?: string
+  passingYear?: number
 }
 
 export const ROLE = {
@@ -86,8 +88,8 @@ export interface Program {
 export interface Batch {
   id: number
   programId: number
-  startYear: number
-  endYear: number
+  startYear: number | null
+  endYear: number | null
   label: string
   activeStudentCount?: number
   convertedStudentCount?: number
@@ -123,6 +125,7 @@ export interface StudentDirectoryRow {
   programName: string
   departmentName: string
   bloodGroupName: string
+  studentId?: string
 }
 
 export interface Event {

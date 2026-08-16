@@ -53,6 +53,16 @@ func Migrate(dbx *sqlx.DB) error {
 	}
 	sort.Strings(names)
 
+	// Migrations run with foreign key enforcement off: some (e.g. a batches table rebuild to
+	// relax a NOT NULL constraint) drop/recreate a table other tables reference by FK, which
+	// the "foreign_keys" pragma would otherwise reject immediately — and that pragma is a no-op
+	// once a transaction is open, so it must be toggled here rather than inside a migration
+	// file. Re-enabled unconditionally before returning, including on error paths.
+	if _, err := dbx.Exec(`PRAGMA foreign_keys = OFF`); err != nil {
+		return fmt.Errorf("disable foreign_keys for migrations: %w", err)
+	}
+	defer dbx.Exec(`PRAGMA foreign_keys = ON`)
+
 	for _, name := range names {
 		var applied int
 		if err := dbx.Get(&applied, `SELECT COUNT(*) FROM schema_migrations WHERE version = ?`, name); err != nil {

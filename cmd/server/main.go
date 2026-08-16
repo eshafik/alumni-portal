@@ -71,7 +71,7 @@ func main() {
 	healthHandler := &handlers.HealthHandler{DB: dbx}
 	alumniHandler := &handlers.AlumniHandler{DB: dbx, Storage: store}
 	studentHandler := &handlers.StudentHandler{DB: dbx, Storage: store}
-	adminHandler := &handlers.AdminHandler{DB: dbx}
+	adminHandler := &handlers.AdminHandler{DB: dbx, Storage: store}
 	committeeHandler := &handlers.CommitteeHandler{DB: dbx, Storage: store}
 	galleryHandler := &handlers.GalleryHandler{DB: dbx, Storage: store}
 	postHandler := &handlers.PostHandler{DB: dbx}

@@ -113,7 +113,7 @@ func (h *AlumniHandler) List(w http.ResponseWriter, r *http.Request) {
 		CASE WHEN ap.privacy_location = 1 THEN ap.current_location ELSE NULL END AS current_location_out,
 		CASE WHEN ap.privacy_company = 1 THEN c.name ELSE NULL END AS company_name_out,
 		COALESCE(bg.name, '') AS blood_group_name
-		` + baseFrom + " " + whereSQL + " ORDER BY u.full_name LIMIT ? OFFSET ?"
+		` + baseFrom + " " + whereSQL + " ORDER BY b.sort_order ASC, u.id ASC LIMIT ? OFFSET ?"
 	pagedArgs := append(append([]any{}, args...), pg.PageSize, pg.Offset)
 
 	rows := []alumniDirectoryRow{}
@@ -165,6 +165,8 @@ type alumniProfileDetail struct {
 	Whatsapp           *string `db:"whatsapp_out" json:"whatsapp,omitempty"`
 	CurrentLocation    *string `db:"current_location_out" json:"currentLocation,omitempty"`
 	SkillNames         string  `db:"skill_names" json:"skillNames,omitempty"`
+	PassingYear        *int64  `db:"passing_year" json:"passingYear,omitempty"`
+	StudentID          string  `db:"student_id" json:"studentId,omitempty"`
 }
 
 func (h *AlumniHandler) Get(w http.ResponseWriter, r *http.Request) {
@@ -175,7 +177,7 @@ func (h *AlumniHandler) Get(w http.ResponseWriter, r *http.Request) {
 	}
 	var p alumniProfileDetail
 	err = h.DB.Get(&p, `SELECT
-		u.id AS user_id, u.full_name, ap.avatar_attachment_id, ap.bio,
+		u.id AS user_id, u.full_name, u.passing_year, u.student_id, ap.avatar_attachment_id, ap.bio,
 		b.label AS batch_label, pr.name AS program_name, d.name AS department_name,
 		ap.current_designation, ap.linkedin_url, ap.website_url,
 		COALESCE(bg.name, '') AS blood_group_name,
@@ -223,6 +225,8 @@ type alumniMeResponse struct {
 	PrivacyWhatsapp    bool   `db:"privacy_whatsapp" json:"privacyWhatsapp"`
 	PrivacyLocation    bool   `db:"privacy_location" json:"privacyLocation"`
 	PrivacyCompany     bool   `db:"privacy_company" json:"privacyCompany"`
+	PassingYear        *int64 `db:"passing_year" json:"passingYear,omitempty"`
+	StudentID          string `db:"student_id" json:"studentId"`
 }
 
 // GetMe returns the caller's own profile completely unfiltered by privacy flags — those
@@ -237,7 +241,7 @@ func (h *AlumniHandler) GetMe(w http.ResponseWriter, r *http.Request) {
 	}
 	var resp alumniMeResponse
 	err := h.DB.Get(&resp, `SELECT
-		u.full_name, u.phone, ap.bio, ap.current_designation, ap.current_location, ap.blood_group_id,
+		u.full_name, u.phone, u.passing_year, u.student_id, ap.bio, ap.current_designation, ap.current_location, ap.blood_group_id,
 		ap.avatar_attachment_id,
 		ap.linkedin_url, ap.whatsapp_number, ap.website_url,
 		ap.privacy_email, ap.privacy_phone, ap.privacy_whatsapp, ap.privacy_location, ap.privacy_company,
@@ -274,6 +278,8 @@ type updateAlumniProfileRequest struct {
 	PrivacyWhatsapp    bool   `json:"privacyWhatsapp"`
 	PrivacyLocation    bool   `json:"privacyLocation"`
 	PrivacyCompany     bool   `json:"privacyCompany"`
+	PassingYear        *int64 `json:"passingYear"`
+	StudentID          string `json:"studentId"`
 }
 
 // UpdateMe accepts everything about the caller's own profile except email — email is never
@@ -310,8 +316,8 @@ func (h *AlumniHandler) UpdateMe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if _, err := h.DB.Exec(`UPDATE users SET full_name = ?, phone = ?, updated_at = datetime('now') WHERE id = ?`,
-		req.FullName, req.Phone, u.ID); err != nil {
+	if _, err := h.DB.Exec(`UPDATE users SET full_name = ?, phone = ?, passing_year = ?, student_id = ?, updated_at = datetime('now') WHERE id = ?`,
+		req.FullName, req.Phone, req.PassingYear, req.StudentID, u.ID); err != nil {
 		httpx.Error(w, http.StatusInternalServerError, "update failed")
 		return
 	}

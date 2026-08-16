@@ -15,14 +15,25 @@ import (
 	"alumni-portal/internal/httpx"
 	"alumni-portal/internal/mailer"
 	"alumni-portal/internal/models"
+	"alumni-portal/internal/storage"
 )
 
 type AdminHandler struct {
-	DB *sqlx.DB
+	DB      *sqlx.DB
+	Storage storage.Driver
 }
 
 // --- User management ---
 
+type adminUserRow struct {
+	models.User
+	AvatarURL string `db:"-" json:"avatarUrl,omitempty"`
+}
+
+// ListUsers resolves each account's avatar from wherever it actually lives — alumni_profiles/
+// student_profiles for Alumni/Student rows, users.avatar_attachment_id directly for
+// Admin/SuperAdmin/Moderator (no profile row) — since users.avatar_attachment_id itself is only
+// ever set for the latter (see web/src/routes/protected/Profile.tsx's hasProfileRow branching).
 func (h *AdminHandler) ListUsers(w http.ResponseWriter, r *http.Request) {
 	status := r.URL.Query().Get("status")
 	roleID := r.URL.Query().Get("roleId")
@@ -32,28 +43,43 @@ func (h *AdminHandler) ListUsers(w http.ResponseWriter, r *http.Request) {
 	where := "WHERE 1=1"
 	args := []any{}
 	if status != "" {
-		where += " AND status = ?"
+		where += " AND u.status = ?"
 		args = append(args, status)
 	}
 	if roleID != "" {
-		where += " AND role_id = ?"
+		where += " AND u.role_id = ?"
 		args = append(args, roleID)
 	}
 	if search != "" {
-		where += " AND (full_name LIKE ? OR email LIKE ?)"
+		where += " AND (u.full_name LIKE ? OR u.email LIKE ?)"
 		like := "%" + search + "%"
 		args = append(args, like, like)
 	}
 
 	var total int
-	_ = h.DB.Get(&total, "SELECT COUNT(*) FROM users "+where, args...)
+	_ = h.DB.Get(&total, "SELECT COUNT(*) FROM users u "+where, args...)
 
-	users := []models.User{}
-	q := "SELECT * FROM users " + where + " ORDER BY created_at DESC LIMIT ? OFFSET ?"
+	users := []adminUserRow{}
+	q := `SELECT
+		u.id, u.institution_id, u.role_id, u.full_name, u.email, u.phone, u.password_hash, u.status,
+		u.moderator_scope_department_id, u.moderator_scope_batch_id, u.rejection_reason,
+		u.created_at, u.updated_at, u.last_login_at,
+		COALESCE(ap.avatar_attachment_id, sp.avatar_attachment_id, u.avatar_attachment_id) AS avatar_attachment_id,
+		u.bio, u.current_location, u.blood_group_id, u.current_designation,
+		u.privacy_email, u.privacy_phone, u.privacy_location, u.current_company_name,
+		u.linkedin_url, u.whatsapp_number, u.website_url, u.privacy_whatsapp, u.privacy_company,
+		u.student_id, u.passing_year
+		FROM users u
+		LEFT JOIN alumni_profiles ap ON ap.user_id = u.id
+		LEFT JOIN student_profiles sp ON sp.user_id = u.id
+		` + where + ` ORDER BY u.created_at DESC LIMIT ? OFFSET ?`
 	args = append(args, pg.PageSize, pg.Offset)
 	if err := h.DB.Select(&users, q, args...); err != nil {
 		httpx.Error(w, http.StatusInternalServerError, "list failed")
 		return
+	}
+	for i := range users {
+		users[i].AvatarURL = attachmentURL(h.DB, h.Storage, users[i].AvatarAttachmentID)
 	}
 	httpx.JSON(w, http.StatusOK, httpx.PagedResult{Items: users, Page: pg.Page, PageSize: pg.PageSize, Total: total})
 }

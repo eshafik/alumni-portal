@@ -25,6 +25,7 @@ type studentDirectoryRow struct {
 	ProgramName        string `db:"program_name" json:"programName"`
 	DepartmentName     string `db:"department_name" json:"departmentName"`
 	BloodGroupName     string `db:"blood_group_name" json:"bloodGroupName"`
+	StudentID          string `db:"student_id" json:"studentId,omitempty"`
 }
 
 // List returns current (non-converted) students only, paginated. View-only data — no
@@ -69,8 +70,8 @@ func (h *StudentHandler) List(w http.ResponseWriter, r *http.Request) {
 	rows := []studentDirectoryRow{}
 	selectQuery := `SELECT u.id AS user_id, u.full_name, sp.avatar_attachment_id,
 		b.label AS batch_label, pr.name AS program_name, d.name AS department_name,
-		COALESCE(bg.name, '') AS blood_group_name
-		` + baseFrom + " " + whereSQL + ` ORDER BY u.full_name LIMIT ? OFFSET ?`
+		COALESCE(bg.name, '') AS blood_group_name, u.student_id
+		` + baseFrom + " " + whereSQL + ` ORDER BY b.sort_order ASC, u.id ASC LIMIT ? OFFSET ?`
 	pagedArgs := append(append([]any{}, args...), pg.PageSize, pg.Offset)
 	if err := h.DB.Select(&rows, selectQuery, pagedArgs...); err != nil {
 		httpx.Error(w, http.StatusInternalServerError, "list failed")
@@ -89,6 +90,7 @@ type studentMeResponse struct {
 	BloodGroupID       *int64 `db:"blood_group_id" json:"bloodGroupId,omitempty"`
 	AvatarAttachmentID *int64 `db:"avatar_attachment_id" json:"avatarAttachmentId,omitempty"`
 	AvatarURL          string `db:"-" json:"avatarUrl,omitempty"`
+	StudentID          string `db:"student_id" json:"studentId"`
 }
 
 // GetMe returns the caller's own student profile, used to prefill the profile edit form.
@@ -99,7 +101,7 @@ func (h *StudentHandler) GetMe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var resp studentMeResponse
-	err := h.DB.Get(&resp, `SELECT u.full_name, u.phone, sp.current_location, sp.blood_group_id, sp.avatar_attachment_id
+	err := h.DB.Get(&resp, `SELECT u.full_name, u.phone, u.student_id, sp.current_location, sp.blood_group_id, sp.avatar_attachment_id
 		FROM student_profiles sp JOIN users u ON u.id = sp.user_id WHERE sp.user_id = ?`, u.ID)
 	if err != nil {
 		httpx.Error(w, http.StatusNotFound, "profile not found")
@@ -115,6 +117,7 @@ type updateStudentProfileRequest struct {
 	BloodGroupID       *int64 `json:"bloodGroupId"`
 	AvatarAttachmentID *int64 `json:"avatarAttachmentId"`
 	CurrentLocation    string `json:"currentLocation"`
+	StudentID          string `json:"studentId"`
 }
 
 // UpdateMe accepts everything about the caller's own profile except email — same rule as
@@ -149,8 +152,8 @@ func (h *StudentHandler) UpdateMe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if _, err := h.DB.Exec(`UPDATE users SET full_name = ?, phone = ?, updated_at = datetime('now') WHERE id = ?`,
-		req.FullName, req.Phone, u.ID); err != nil {
+	if _, err := h.DB.Exec(`UPDATE users SET full_name = ?, phone = ?, student_id = ?, updated_at = datetime('now') WHERE id = ?`,
+		req.FullName, req.Phone, req.StudentID, u.ID); err != nil {
 		httpx.Error(w, http.StatusInternalServerError, "update failed")
 		return
 	}

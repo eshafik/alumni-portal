@@ -294,8 +294,8 @@ func (h *InstitutionHandler) CreateBatch(w http.ResponseWriter, r *http.Request)
 		httpx.Error(w, http.StatusBadRequest, "programId and startYear are required")
 		return
 	}
-	res, err := h.DB.Exec(`INSERT INTO batches (program_id, start_year, end_year, label) VALUES (?, ?, ?, ?)`,
-		req.ProgramID, req.StartYear, req.EndYear, req.Label)
+	res, err := h.DB.Exec(`INSERT INTO batches (program_id, start_year, end_year, label, sort_order) VALUES (?, ?, ?, ?, ?)`,
+		req.ProgramID, req.StartYear, req.EndYear, req.Label, req.StartYear)
 	if err != nil {
 		httpx.Error(w, http.StatusInternalServerError, "create failed")
 		return
@@ -321,8 +321,8 @@ func (h *InstitutionHandler) UpdateBatch(w http.ResponseWriter, r *http.Request)
 	}
 	var before models.Batch
 	_ = h.DB.Get(&before, `SELECT * FROM batches WHERE id = ?`, id)
-	if _, err := h.DB.Exec(`UPDATE batches SET start_year = ?, end_year = ?, label = ? WHERE id = ?`,
-		req.StartYear, req.EndYear, req.Label, id); err != nil {
+	if _, err := h.DB.Exec(`UPDATE batches SET start_year = ?, end_year = ?, label = ?, sort_order = ? WHERE id = ?`,
+		req.StartYear, req.EndYear, req.Label, req.StartYear, id); err != nil {
 		httpx.Error(w, http.StatusInternalServerError, "update failed")
 		return
 	}

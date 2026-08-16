@@ -6,7 +6,7 @@ import { ApiError } from '../../api/client'
 import { useAuth } from '../../hooks/useAuth'
 import { ROLE } from '../../types/api'
 import type { User, Department, Batch } from '../../types/api'
-import { Button, Card, Input, Select, Badge, Loading, Pagination } from '../../components/shared/ui'
+import { Avatar, Button, Card, Input, Select, Badge, Loading, Pagination } from '../../components/shared/ui'
 import { useDebounce } from '../../hooks/useDebounce'
 import { useConfirm } from '../../hooks/useConfirm'
 
@@ -179,21 +179,24 @@ export default function AdminUsers() {
           {users.map((u) => (
             <Card key={u.id} className="p-4">
               <div className="flex flex-wrap items-center justify-between gap-3">
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <p className="font-medium text-slate-900">{u.fullName}</p>
-                    <Badge>{ROLE_LABELS[u.roleId] ?? u.roleId}</Badge>
-                    <Badge tone={STATUS_TONE[u.status] ?? 'default'}>{u.status.replace('_', ' ')}</Badge>
-                    {u.roleId === ROLE.Moderator && (u.moderatorScopeDepartmentId || u.moderatorScopeBatchId) && (
-                      <span className="text-xs text-slate-400">
-                        scoped to{' '}
-                        {u.moderatorScopeDepartmentId && departments.find((d) => d.id === u.moderatorScopeDepartmentId)?.name}
-                        {u.moderatorScopeDepartmentId && u.moderatorScopeBatchId && ' · '}
-                        {u.moderatorScopeBatchId && (batches.find((b) => b.id === u.moderatorScopeBatchId)?.label || 'batch')}
-                      </span>
-                    )}
+                <div className="flex items-center gap-3 min-w-0">
+                  <Avatar name={u.fullName} url={u.avatarUrl} size="sm" />
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="font-medium text-slate-900">{u.fullName}</p>
+                      <Badge>{ROLE_LABELS[u.roleId] ?? u.roleId}</Badge>
+                      <Badge tone={STATUS_TONE[u.status] ?? 'default'}>{u.status.replace('_', ' ')}</Badge>
+                      {u.roleId === ROLE.Moderator && (u.moderatorScopeDepartmentId || u.moderatorScopeBatchId) && (
+                        <span className="text-xs text-slate-400">
+                          scoped to{' '}
+                          {u.moderatorScopeDepartmentId && departments.find((d) => d.id === u.moderatorScopeDepartmentId)?.name}
+                          {u.moderatorScopeDepartmentId && u.moderatorScopeBatchId && ' · '}
+                          {u.moderatorScopeBatchId && (batches.find((b) => b.id === u.moderatorScopeBatchId)?.label || 'batch')}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-sm text-slate-500">{u.email}</p>
                   </div>
-                  <p className="text-sm text-slate-500">{u.email}</p>
                 </div>
                 {u.id !== me?.id && (
                   <div className="flex items-center gap-1 shrink-0">

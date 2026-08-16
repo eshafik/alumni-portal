@@ -46,6 +46,8 @@ interface ProfileDetail {
   whatsapp?: string
   currentLocation?: string
   skillNames?: string
+  passingYear?: number
+  studentId?: string
 }
 
 export function AlumniDetailCard({ userId }: { userId: number | string }) {
@@ -100,6 +102,18 @@ export function AlumniDetailCard({ userId }: { userId: number | string }) {
           <div>
             <dt className="text-slate-400">Location</dt>
             <dd>{profile.currentLocation}</dd>
+          </div>
+        )}
+        {profile.passingYear && (
+          <div>
+            <dt className="text-slate-400">Passing Year</dt>
+            <dd>{profile.passingYear}</dd>
+          </div>
+        )}
+        {profile.studentId && (
+          <div>
+            <dt className="text-slate-400">Student ID</dt>
+            <dd>{profile.studentId}</dd>
           </div>
         )}
         {profile.bloodGroupName && (

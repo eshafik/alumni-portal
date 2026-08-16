@@ -27,6 +27,8 @@ interface FormState {
   privacyWhatsapp: boolean
   privacyLocation: boolean
   privacyCompany: boolean
+  passingYear: string
+  studentId: string
 }
 
 const emptyForm: FormState = {
@@ -46,6 +48,8 @@ const emptyForm: FormState = {
   privacyWhatsapp: true,
   privacyLocation: true,
   privacyCompany: true,
+  passingYear: '',
+  studentId: '',
 }
 
 export default function Profile() {
@@ -123,6 +127,8 @@ export default function Profile() {
           privacyWhatsapp: data.privacyWhatsapp ?? true,
           privacyLocation: data.privacyLocation ?? true,
           privacyCompany: data.privacyCompany ?? true,
+          passingYear: data.passingYear != null ? String(data.passingYear) : '',
+          studentId: data.studentId ?? '',
         }))
         setAvatarUrl(data.avatarUrl)
       })
@@ -162,6 +168,7 @@ export default function Profile() {
         await alumniApi.updateMe({
           ...form,
           bloodGroupId: form.bloodGroupId ? Number(form.bloodGroupId) : null,
+          passingYear: form.passingYear ? Number(form.passingYear) : null,
         })
       } else if (isStudent) {
         await api.put('/api/students/me', {
@@ -170,6 +177,7 @@ export default function Profile() {
           currentLocation: form.currentLocation,
           bloodGroupId: form.bloodGroupId ? Number(form.bloodGroupId) : null,
           avatarAttachmentId: form.avatarAttachmentId,
+          studentId: form.studentId,
         })
       } else {
         await authApi.updateMe(nonProfilePayload())
@@ -201,6 +209,7 @@ export default function Profile() {
         await alumniApi.updateMe({
           ...form,
           bloodGroupId: form.bloodGroupId ? Number(form.bloodGroupId) : null,
+          passingYear: form.passingYear ? Number(form.passingYear) : null,
         })
       } else {
         await authApi.updateMe(nonProfilePayload())
@@ -266,6 +275,12 @@ export default function Profile() {
               <label className="text-sm font-medium block mb-1">Bio</label>
               <textarea className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" rows={3} value={form.bio} onChange={set('bio')} />
             </div>
+          )}
+
+          {isAlumni && <Input type="number" placeholder="Passing year" value={form.passingYear} onChange={set('passingYear')} />}
+
+          {(isAlumni || isStudent) && (
+            <Input placeholder="Student ID" value={form.studentId} onChange={set('studentId')} />
           )}
 
           {(isAlumni || !hasProfileRow) && (

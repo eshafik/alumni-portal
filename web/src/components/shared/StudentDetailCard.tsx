@@ -24,6 +24,12 @@ export function StudentDetailCard({ student }: { student: StudentDirectoryRow })
             <dd>{student.bloodGroupName}</dd>
           </div>
         )}
+        {student.studentId && (
+          <div>
+            <dt className="text-slate-400">Student ID</dt>
+            <dd>{student.studentId}</dd>
+          </div>
+        )}
       </dl>
       <p className="text-xs text-slate-400 mt-4">Student directory is view-only.</p>
     </Card>

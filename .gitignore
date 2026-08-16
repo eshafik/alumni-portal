@@ -7,3 +7,4 @@ web/dev-dist/
 *.log
 .env
 .DS_Store
+*.csv
