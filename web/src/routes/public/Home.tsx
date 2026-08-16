@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Compass, Target, CalendarDays, MapPin, Sparkles, Users, GraduationCap, Clock, ImageIcon, ExternalLink, Megaphone } from 'lucide-react'
+import { CalendarDays, MapPin, Clock, ImageIcon, ExternalLink, Megaphone, Compass, Target } from 'lucide-react'
 import { eventsApi, noticesApi, galleryApi } from '../../api/content'
 import { api } from '../../api/client'
 import { useInstitution } from '../../hooks/useInstitution'
@@ -8,11 +8,12 @@ import { useAuth } from '../../hooks/useAuth'
 import { useInView } from '../../hooks/useInView'
 import type { Event, Notice, GalleryImage } from '../../types/api'
 import { Button, Card, Badge, Loading, Reveal } from '../../components/shared/ui'
-import { ImageSlider } from '../../components/shared/ImageSlider'
 import { cn, normalizeExternalUrl } from '../../lib/utils'
-
-const DEFAULT_TAGLINE = 'Connect. Remember. Grow Together.'
-const REDUCED_MOTION_QUERY = '(prefers-reduced-motion: reduce)'
+import { HeroSection } from './home/HeroSection'
+import { StatsPanel } from './home/StatsPanel'
+import { WhyJoinUs } from './home/WhyJoinUs'
+import { ClosingCta } from './home/ClosingCta'
+import { Kicker } from './home/Kicker'
 
 interface CommitteeMember {
   userId: number
@@ -22,10 +23,6 @@ interface CommitteeMember {
 interface CommitteePosition {
   title: string
   members: CommitteeMember[]
-}
-
-function Kicker({ children }: { children: string }) {
-  return <p className="text-xs font-semibold tracking-wider text-brand uppercase mb-1.5">{children}</p>
 }
 
 const DESCRIPTION_LIMIT = 160
@@ -97,59 +94,6 @@ function StreamingText({ text, limit = 280, className = 'text-slate-600 leading-
   )
 }
 
-// Counts 0 -> target once `active`, easeOutCubic. Jumps straight to target under reduced-motion.
-function useCountUp(target: number, active: boolean, durationMs = 900) {
-  const [value, setValue] = useState(0)
-  useEffect(() => {
-    if (!active) return
-    if (window.matchMedia(REDUCED_MOTION_QUERY).matches) {
-      setValue(target)
-      return
-    }
-    let raf: number
-    const start = performance.now()
-    const tick = (now: number) => {
-      const t = Math.min(1, (now - start) / durationMs)
-      const eased = 1 - Math.pow(1 - t, 3)
-      setValue(Math.round(eased * target))
-      if (t < 1) raf = requestAnimationFrame(tick)
-    }
-    raf = requestAnimationFrame(tick)
-    return () => cancelAnimationFrame(raf)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [active, target, durationMs])
-  return value
-}
-
-// Subtle rAF-throttled parallax shift for the hero's decorative blurred circles. No-op under reduced-motion.
-function useParallax(maxShift = 20) {
-  const ref = useRef<HTMLDivElement>(null)
-  const [shift, setShift] = useState(0)
-
-  useEffect(() => {
-    if (window.matchMedia(REDUCED_MOTION_QUERY).matches) return
-    let raf = 0
-    const onScroll = () => {
-      if (raf) return
-      raf = requestAnimationFrame(() => {
-        raf = 0
-        const el = ref.current
-        if (!el) return
-        const rect = el.getBoundingClientRect()
-        const progress = Math.max(-1, Math.min(1, rect.top / (window.innerHeight || 1)))
-        setShift(progress * maxShift)
-      })
-    }
-    window.addEventListener('scroll', onScroll, { passive: true })
-    return () => {
-      window.removeEventListener('scroll', onScroll)
-      if (raf) cancelAnimationFrame(raf)
-    }
-  }, [maxShift])
-
-  return [ref, shift] as const
-}
-
 export default function Home() {
   const { institution, stats, loading: institutionLoading } = useInstitution()
   const { user } = useAuth()
@@ -158,10 +102,6 @@ export default function Home() {
   const [notices, setNotices] = useState<Notice[]>([])
   const [committee, setCommittee] = useState<CommitteePosition[]>([])
   const [loading, setLoading] = useState(true)
-  const [heroRef, heroShift] = useParallax()
-  const [statsRef, statsInView] = useInView<HTMLElement>()
-  const alumniCount = useCountUp(stats.alumniCount ?? 0, statsInView)
-  const batchCount = useCountUp(stats.batchCount ?? 0, statsInView)
 
   useEffect(() => {
     Promise.all([
@@ -191,69 +131,12 @@ export default function Home() {
 
   return (
     <div className="space-y-10 pb-8">
-      {/* Hero — single code path for gallery / no-gallery, always white-on-gradient */}
-      <Reveal tag="section" className="text-center pt-4">
-        <div className="relative -mx-4 sm:mx-0 sm:rounded-2xl bg-gradient-to-br from-brand via-brand to-indigo-950 py-16 sm:py-20 px-6 text-white overflow-hidden">
-          <div
-            ref={heroRef}
-            className="pointer-events-none absolute -top-24 -left-16 w-72 h-72 rounded-full bg-white/10 blur-3xl"
-            style={{ transform: `translateY(${heroShift}px)` }}
-          />
-          <div
-            className="pointer-events-none absolute -bottom-24 -right-16 w-72 h-72 rounded-full bg-indigo-400/20 blur-3xl"
-            style={{ transform: `translateY(${-heroShift}px)` }}
-          />
-
-          <div className="relative">
-            {institution?.name && (
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 border border-white/20 backdrop-blur-sm px-3 py-1 text-xs font-medium text-white/90 mb-5">
-                <Sparkles size={12} /> {institution.name}
-              </span>
-            )}
-
-            {gallery.length > 0 && (
-              <div className="max-w-3xl mx-auto mb-8 rounded-xl overflow-hidden shadow-lg shadow-black/20 ring-1 ring-white/10">
-                <ImageSlider images={gallery} />
-              </div>
-            )}
-
-            <h1 className="text-4xl md:text-6xl font-bold mb-4 tracking-tight text-balance">{institution?.tagline || DEFAULT_TAGLINE}</h1>
-            <p className="text-white/80 max-w-xl mx-auto mb-8">{description}</p>
-            <div className="flex flex-wrap justify-center gap-3">
-              <Link to="/signup">
-                <Button className="px-6 py-3 text-base rounded-full bg-white text-brand hover:bg-white/90 shadow-lg shadow-black/10">Join Alumni Community</Button>
-              </Link>
-              {user && (
-                <Link to="/directory">
-                  <Button variant="secondary" className="px-6 py-3 text-base rounded-full bg-white/10 text-white border border-white/30 hover:bg-white/20">
-                    Explore Alumni
-                  </Button>
-                </Link>
-              )}
-            </div>
-          </div>
-        </div>
-      </Reveal>
-
-      {/* Stats */}
-      {(stats.alumniCount ?? 0) > 0 && (
-        <section ref={statsRef as never} className={cn('reveal grid grid-cols-2 gap-4 text-center', statsInView && 'reveal-in')}>
-          <Card className="py-7 bg-gradient-to-br from-brand/5 to-transparent border-brand/10">
-            <div className="w-10 h-10 rounded-full bg-brand/10 text-brand flex items-center justify-center mx-auto mb-2">
-              <Users size={18} />
-            </div>
-            <p className="text-4xl font-bold text-brand tabular-nums">{alumniCount}</p>
-            <p className="text-sm text-slate-500 mt-1">Alumni</p>
-          </Card>
-          <Card className="py-7 bg-gradient-to-br from-brand/5 to-transparent border-brand/10">
-            <div className="w-10 h-10 rounded-full bg-brand/10 text-brand flex items-center justify-center mx-auto mb-2">
-              <GraduationCap size={18} />
-            </div>
-            <p className="text-4xl font-bold text-brand tabular-nums">{batchCount}</p>
-            <p className="text-sm text-slate-500 mt-1">Batches</p>
-          </Card>
-        </section>
-      )}
+      {/* Hero + Stats are one space-y unit: StatsPanel's own negative margin pulls it up over
+          the hero's bottom edge, so it must not also inherit a sibling margin from space-y-10. */}
+      <div>
+        <HeroSection institution={institution} gallery={gallery} description={description} showExploreButton={!!user} />
+        <StatsPanel alumniCount={stats.alumniCount ?? 0} batchCount={stats.batchCount ?? 0} />
+      </div>
 
       {/* About + Mission */}
       {(institution?.aboutText || institution?.missionText) && (
@@ -284,6 +167,10 @@ export default function Home() {
           </div>
         </Reveal>
       )}
+
+      <Reveal tag="section">
+        <WhyJoinUs />
+      </Reveal>
 
       {/* Committee — name, photo, position only */}
       {committee.length > 0 && (
@@ -426,6 +313,8 @@ export default function Home() {
           </div>
         )}
       </Reveal>
+
+      {!user && <ClosingCta />}
     </div>
   )
 }
