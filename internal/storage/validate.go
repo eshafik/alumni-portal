@@ -18,6 +18,7 @@ const (
 	ContextEventCover  UploadContext = "event"
 	ContextBusiness    UploadContext = "business"
 	ContextGallery     UploadContext = "gallery"
+	ContextFavicon     UploadContext = "favicon"
 )
 
 var allowedImageMIME = map[string]string{
@@ -34,6 +35,7 @@ var maxSizeByContext = map[UploadContext]int64{
 	ContextEventCover:  8 << 20, // 8MB
 	ContextBusiness:    4 << 20, // 4MB
 	ContextGallery:     8 << 20, // 8MB — homepage hero slider
+	ContextFavicon:     1 << 20, // 1MB
 }
 
 var ErrUnsupportedType = errors.New("unsupported file type; only JPEG, PNG, and WebP images are allowed")

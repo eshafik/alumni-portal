@@ -22,7 +22,8 @@ type InstitutionHandler struct {
 
 type institutionResponse struct {
 	models.Institution
-	LogoURL string `json:"logoUrl,omitempty"`
+	LogoURL    string `json:"logoUrl,omitempty"`
+	FaviconURL string `json:"faviconUrl,omitempty"`
 }
 
 // GetInstitution returns public institution branding/config plus lightweight community stats.
@@ -38,7 +39,11 @@ func (h *InstitutionHandler) GetInstitution(w http.ResponseWriter, r *http.Reque
 	_ = h.DB.Get(&batchCount, `SELECT COUNT(DISTINCT batch_id) FROM alumni_profiles`)
 
 	httpx.JSON(w, http.StatusOK, map[string]any{
-		"institution": institutionResponse{Institution: inst, LogoURL: attachmentURL(h.DB, h.Storage, inst.LogoAttachmentID)},
+		"institution": institutionResponse{
+			Institution: inst,
+			LogoURL:     attachmentURL(h.DB, h.Storage, inst.LogoAttachmentID),
+			FaviconURL:  attachmentURL(h.DB, h.Storage, inst.FaviconAttachmentID),
+		},
 		"stats": map[string]int{
 			"alumniCount": alumniCount,
 			"batchCount":  batchCount,
@@ -48,19 +53,20 @@ func (h *InstitutionHandler) GetInstitution(w http.ResponseWriter, r *http.Reque
 }
 
 type updateInstitutionRequest struct {
-	Name             string `json:"name"`
-	ShortName        string `json:"shortName"`
-	InstitutionType  string `json:"institutionType"`
-	Description      string `json:"description"`
-	Tagline          string `json:"tagline"`
-	Address          string `json:"address"`
-	Website          string `json:"website"`
-	ContactEmail     string `json:"contactEmail"`
-	AboutText        string `json:"aboutText"`
-	MissionText      string `json:"missionText"`
-	ThemeColor       string `json:"themeColor"`
-	SocialLinks      string `json:"socialLinks"`
-	LogoAttachmentID *int64 `json:"logoAttachmentId"`
+	Name                string `json:"name"`
+	ShortName           string `json:"shortName"`
+	InstitutionType     string `json:"institutionType"`
+	Description         string `json:"description"`
+	Tagline             string `json:"tagline"`
+	Address             string `json:"address"`
+	Website             string `json:"website"`
+	ContactEmail        string `json:"contactEmail"`
+	AboutText           string `json:"aboutText"`
+	MissionText         string `json:"missionText"`
+	ThemeColor          string `json:"themeColor"`
+	SocialLinks         string `json:"socialLinks"`
+	LogoAttachmentID    *int64 `json:"logoAttachmentId"`
+	FaviconAttachmentID *int64 `json:"faviconAttachmentId"`
 }
 
 func (h *InstitutionHandler) UpdateInstitution(w http.ResponseWriter, r *http.Request) {
@@ -73,10 +79,10 @@ func (h *InstitutionHandler) UpdateInstitution(w http.ResponseWriter, r *http.Re
 	_, err := h.DB.Exec(`UPDATE institutions SET
 		name = ?, short_name = ?, institution_type = ?, description = ?, tagline = ?, address = ?,
 		website = ?, contact_email = ?, about_text = ?, mission_text = ?, theme_color = ?,
-		social_links = ?, logo_attachment_id = ?, updated_at = datetime('now')`,
+		social_links = ?, logo_attachment_id = ?, favicon_attachment_id = ?, updated_at = datetime('now')`,
 		req.Name, req.ShortName, req.InstitutionType, req.Description, req.Tagline, req.Address,
 		req.Website, req.ContactEmail, req.AboutText, req.MissionText, req.ThemeColor,
-		req.SocialLinks, req.LogoAttachmentID,
+		req.SocialLinks, req.LogoAttachmentID, req.FaviconAttachmentID,
 	)
 	if err != nil {
 		httpx.Error(w, http.StatusInternalServerError, "update failed")

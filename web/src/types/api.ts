@@ -61,6 +61,8 @@ export interface Institution {
   socialLinks: string
   logoAttachmentId?: number
   logoUrl?: string
+  faviconAttachmentId?: number
+  faviconUrl?: string
 }
 
 export interface GalleryImage {

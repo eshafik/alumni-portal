@@ -37,13 +37,17 @@ export default function AdminInstitutionSettings() {
     themeColor: '#1e3a8a',
     socialLinks: '{}',
     logoAttachmentId: undefined as number | undefined,
+    faviconAttachmentId: undefined as number | undefined,
   })
   const [logoUrl, setLogoUrl] = useState('')
   const [logoUploading, setLogoUploading] = useState(false)
+  const [faviconUrl, setFaviconUrl] = useState('')
+  const [faviconUploading, setFaviconUploading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState('')
   const logoInputRef = useRef<HTMLInputElement>(null)
+  const faviconInputRef = useRef<HTMLInputElement>(null)
 
   const [gallery, setGallery] = useState<GalleryImage[]>([])
   const [galleryUploading, setGalleryUploading] = useState(false)
@@ -64,8 +68,10 @@ export default function AdminInstitutionSettings() {
         themeColor: institution.themeColor || '#1e3a8a',
         socialLinks: institution.socialLinks || '{}',
         logoAttachmentId: institution.logoAttachmentId,
+        faviconAttachmentId: institution.faviconAttachmentId,
       })
       setLogoUrl(institution.logoUrl ?? '')
+      setFaviconUrl(institution.faviconUrl ?? '')
     }
   }, [institution])
 
@@ -104,6 +110,19 @@ export default function AdminInstitutionSettings() {
       setLogoUrl(url)
     } finally {
       setLogoUploading(false)
+    }
+  }
+
+  const onFaviconChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setFaviconUploading(true)
+    try {
+      const { attachmentId, url } = await uploadImage(file, 'favicon')
+      setForm((f) => ({ ...f, faviconAttachmentId: attachmentId }))
+      setFaviconUrl(url)
+    } finally {
+      setFaviconUploading(false)
     }
   }
 
@@ -154,6 +173,19 @@ export default function AdminInstitutionSettings() {
                 <Upload size={15} className="mr-1.5" /> {logoUploading ? 'Uploading...' : logoUrl ? 'Replace logo' : 'Upload logo'}
               </Button>
               <p className="text-xs text-slate-400 mt-1.5">PNG, JPG, or WebP. Square images work best.</p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-5 mb-6">
+            <div className="w-10 h-10 rounded-lg border border-slate-200 bg-slate-50 flex items-center justify-center overflow-hidden shrink-0">
+              {faviconUrl ? <img src={faviconUrl} alt="Favicon" className="w-full h-full object-contain" /> : <Building2 size={16} className="text-slate-300" />}
+            </div>
+            <div>
+              <input ref={faviconInputRef} type="file" accept="image/png,image/jpeg,image/webp" onChange={onFaviconChange} className="hidden" />
+              <Button type="button" variant="secondary" onClick={() => faviconInputRef.current?.click()} disabled={faviconUploading}>
+                <Upload size={15} className="mr-1.5" /> {faviconUploading ? 'Uploading...' : faviconUrl ? 'Replace favicon' : 'Upload favicon'}
+              </Button>
+              <p className="text-xs text-slate-400 mt-1.5">Shown in the browser tab. Small square images work best.</p>
             </div>
           </div>
 

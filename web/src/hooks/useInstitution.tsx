@@ -33,6 +33,21 @@ export function InstitutionProvider({ children }: { children: ReactNode }) {
         document.documentElement.style.setProperty('--color-brand', res.institution.themeColor)
         document.documentElement.style.setProperty('--color-brand-dark', `color-mix(in srgb, ${res.institution.themeColor} 80%, black)`)
       }
+      // Same runtime-override idea for the browser tab: index.html ships static "Alumni
+      // Portal" title/favicon defaults so the tab isn't blank before this fetch resolves;
+      // an admin-configured name/favicon takes over here without a rebuild.
+      document.title = res.institution.shortName || res.institution.name || 'Alumni Portal'
+      if (res.institution.faviconUrl) {
+        for (const rel of ['icon', 'apple-touch-icon']) {
+          let link = document.querySelector<HTMLLinkElement>(`link[rel="${rel}"]`)
+          if (!link) {
+            link = document.createElement('link')
+            link.rel = rel
+            document.head.appendChild(link)
+          }
+          link.href = res.institution.faviconUrl
+        }
+      }
     } finally {
       setLoading(false)
     }
