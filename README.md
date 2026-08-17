@@ -108,6 +108,7 @@ cmd/
   seed/              demo data generator
   import/            CSV bulk-import tool
   migrate-storage/   local → S3 file migration tool
+  backup-sync/       S3 backup sync tool (see DEPLOYMENT.md)
 internal/
   auth/              session/password/OTP handling, RBAC middleware
   db/                connection setup + migrations (sequential .sql files, auto-applied)
@@ -138,64 +139,14 @@ All configuration is environment variables, loaded from `.env` automatically on 
 
 ## Deployment
 
-No CI, no on-server build — everything is built on your machine and shipped as a binary.
+No CI, no on-server build — everything is built on your machine and shipped as a binary. The
+deploy scripts support running multiple institutions side by side on one server, each as its own
+named instance (own directory, system user, port, and nginx server block).
 
-```bash
-./build.sh                              # builds web/dist + dist/alumni-portal (linux/amd64)
-SERVER_HOST=user@your-vps ./deploy/deploy.sh
-```
-
-One-time server setup (run once on a fresh VPS):
-
-```bash
-scp deploy/*.sh deploy/*.service deploy/*.timer deploy/nginx.conf user@your-vps:/tmp/
-ssh user@your-vps 'sudo mkdir -p /opt/alumni-portal && sudo mv /tmp/*.sh /tmp/*.service /tmp/*.timer /opt/alumni-portal/ && sudo bash /opt/alumni-portal/setup-server.sh'
-```
-
-Then edit `/opt/alumni-portal/.env` on the server (secrets, SMTP, SuperAdmin credentials),
-install `deploy/nginx.conf` (see comments in that file for certbot TLS setup), and:
-
-```bash
-ssh user@your-vps 'sudo systemctl start alumni-portal'
-```
-
-Every subsequent deploy is `./build.sh && SERVER_HOST=... ./deploy/deploy.sh` — binary swap +
-`systemctl restart`, nothing else touches the server. Roll back with `./deploy/rollback.sh`.
-
-### Backups
-
-`deploy/backup.sh` runs `sqlite3 .backup` (safe against a live WAL database) nightly via the
-included systemd timer, retaining 14 days in `/var/backups/alumni-portal`:
-
-```bash
-ssh user@your-vps 'sudo cp /opt/alumni-portal/alumni-portal-backup.* /etc/systemd/system/ && sudo systemctl enable --now alumni-portal-backup.timer'
-```
-
-If `STORAGE_DRIVER=local`, also back up `/var/lib/alumni-portal/uploads` (e.g. periodic offsite
-`rsync`); with `STORAGE_DRIVER=s3` the bucket is already durable.
-
-**Restore**: stop the service, copy a backup file over `/var/lib/alumni-portal/data.db` (remove
-any `-wal`/`-shm` sidecar files first), restart.
-
-**Moving to a new server**: copy `/var/lib/alumni-portal/` (or just `data.db` + `uploads/` if
-using S3) and `/opt/alumni-portal/.env` to the new host, run `setup-server.sh`, deploy the
-binary, done.
-
-### Switching storage from local disk to S3
-
-Attachments are referenced in the database only by their storage key, never a full URL, so
-every existing image keeps working once files are moved and `STORAGE_DRIVER` is flipped — no
-database migration needed.
-
-1. Add `S3_BUCKET`/`S3_REGION`/`S3_ACCESS_KEY`/`S3_SECRET_KEY` (and `S3_ENDPOINT` for
-   non-AWS providers) to `.env`, keeping `STORAGE_DRIVER=local` for now.
-2. Run the migration tool (idempotent — safe to re-run if interrupted):
-   ```bash
-   ./dist/alumni-migrate-storage -dry-run   # preview
-   ./dist/alumni-migrate-storage            # upload
-   ```
-3. Set `STORAGE_DRIVER=s3` and restart.
-4. Spot-check a few image URLs load, then it's safe to delete the old local upload directory.
+**See [DEPLOYMENT.md](./DEPLOYMENT.md) for the full step-by-step guide** — server bootstrap,
+building and deploying, nginx setup, managing the running service, rollback, enabling/disabling
+nightly backups, running a backup or S3 sync manually, restoring from a backup, adding another
+institution, and switching storage from local disk to S3.
 
 ## Contributing
 
