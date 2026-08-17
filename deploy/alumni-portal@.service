@@ -1,0 +1,21 @@
+[Unit]
+Description=Alumni Portal (%i)
+After=network.target
+
+[Service]
+Type=simple
+User=alumni-portal-%i
+Group=alumni-portal-%i
+WorkingDirectory=/opt/alumni-portal-%i
+EnvironmentFile=/opt/alumni-portal-%i/.env
+ExecStart=/opt/alumni-portal-%i/alumni-portal
+Restart=on-failure
+RestartSec=3
+# Hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/alumni-portal-%i
+
+[Install]
+WantedBy=multi-user.target

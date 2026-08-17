@@ -1,0 +1,9 @@
+[Unit]
+Description=Alumni Portal nightly SQLite backup (%i)
+
+[Service]
+Type=oneshot
+User=alumni-portal-%i
+WorkingDirectory=/opt/alumni-portal-%i
+EnvironmentFile=/opt/alumni-portal-%i/.env
+ExecStart=/opt/alumni-portal-%i/backup.sh

@@ -1,0 +1,51 @@
+# Per-instance nginx server block — copy this once per institution you host, filling in the
+# three placeholders below, then save as e.g. /etc/nginx/sites-available/alumni-portal-aated and
+# symlink into sites-enabled. Run `certbot --nginx -d __DOMAIN__` afterward to provision TLS (or
+# point ssl_certificate/key at your own certs and drop the certbot-managed lines).
+#
+# Placeholders to replace:
+#   __DOMAIN__       e.g. aated.example.edu
+#   __PORT__         the PORT this instance's .env is set to (see /opt/alumni-portal-<instance>/.env)
+#   __UPLOADS_DIR__  this instance's STORAGE_LOCAL_PATH, e.g. /var/lib/alumni-portal-aated/uploads
+#
+# Note on "static files": this app's frontend (JS/CSS/index.html) is embedded *inside* the Go
+# binary (go:embed) — there's no loose dist/ folder on disk for nginx to serve directly, so
+# everything except /files/ below is reverse-proxied to the app, which serves it straight from
+# memory (no real disk I/O, so proxying it costs nothing meaningful). /files/ (uploaded
+# avatars/logos/etc., only relevant when STORAGE_DRIVER=local) genuinely IS real files on disk,
+# so nginx serves those directly — faster, and takes that load off the Go process entirely.
+server {
+    listen 80;
+    server_name __DOMAIN__;
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl http2;
+    server_name __DOMAIN__;
+
+    ssl_certificate     /etc/letsencrypt/live/__DOMAIN__/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/__DOMAIN__/privkey.pem;
+
+    client_max_body_size 10m; # profile/job/event image uploads
+
+    # Uploaded files: served directly from disk, bypassing the Go app entirely. Storage keys are
+    # opaque UUIDs minted once per upload and never overwritten (internal/storage/validate.go),
+    # so a given URL's content never changes — safe to cache aggressively, same policy the app's
+    # own /files handler already sets when this route isn't matched here (e.g. STORAGE_DRIVER=s3,
+    # where this directory won't exist and the location block below just won't match anything —
+    # harmless either way).
+    location /files/ {
+        alias __UPLOADS_DIR__/;
+        add_header Cache-Control "public, max-age=31536000, immutable";
+        try_files $uri =404;
+    }
+
+    # Everything else (frontend, API, /share/*) — reverse-proxied to this instance's own port.
+    location / {
+        proxy_pass http://127.0.0.1:__PORT__;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}

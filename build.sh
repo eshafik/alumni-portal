@@ -22,5 +22,8 @@ GOOS="$GOOS_TARGET" GOARCH="$GOARCH_TARGET" go build -o dist/alumni-import ./cmd
 echo "==> Building storage migration CLI"
 GOOS="$GOOS_TARGET" GOARCH="$GOARCH_TARGET" go build -o dist/alumni-migrate-storage ./cmd/migrate-storage
 
+echo "==> Building backup-sync CLI"
+GOOS="$GOOS_TARGET" GOARCH="$GOARCH_TARGET" go build -o dist/alumni-backup-sync ./cmd/backup-sync
+
 echo "==> Done. Artifacts in ./dist/"
 ls -la dist/

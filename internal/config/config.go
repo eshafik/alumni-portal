@@ -20,6 +20,7 @@ type Config struct {
 	S3AccessKey        string
 	S3SecretKey        string
 	S3PublicURL        string
+	S3BackupBucket     string // separate bucket (or same one, different prefix) for cmd/backup-sync
 	SMTPHost           string
 	SMTPPort           int
 	SMTPUser           string
@@ -73,6 +74,7 @@ func Load() Config {
 		S3AccessKey:        getEnv("S3_ACCESS_KEY", ""),
 		S3SecretKey:        getEnv("S3_SECRET_KEY", ""),
 		S3PublicURL:        getEnv("S3_PUBLIC_URL", ""),
+		S3BackupBucket:     getEnv("S3_BACKUP_BUCKET", ""),
 		SMTPHost:           getEnv("SMTP_HOST", ""),
 		SMTPPort:           getEnvInt("SMTP_PORT", 587),
 		SMTPUser:           getEnv("SMTP_USER", ""),

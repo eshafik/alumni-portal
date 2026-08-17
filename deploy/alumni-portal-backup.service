@@ -1,7 +1,0 @@
-[Unit]
-Description=Alumni Portal nightly SQLite backup
-
-[Service]
-Type=oneshot
-User=alumni-portal
-ExecStart=/opt/alumni-portal/backup.sh
