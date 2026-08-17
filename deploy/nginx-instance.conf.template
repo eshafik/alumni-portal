@@ -1,5 +1,5 @@
 # Per-instance nginx server block — copy this once per institution you host, filling in the
-# three placeholders below, then save as e.g. /etc/nginx/sites-available/alumni-portal-aated and
+# placeholders below, then save as e.g. /etc/nginx/sites-available/alumni-portal-aated and
 # symlink into sites-enabled. Run `certbot --nginx -d __DOMAIN__` afterward to provision TLS (or
 # point ssl_certificate/key at your own certs and drop the certbot-managed lines).
 #
@@ -7,6 +7,8 @@
 #   __DOMAIN__       e.g. aated.example.edu
 #   __PORT__         the PORT this instance's .env is set to (see /opt/alumni-portal-<instance>/.env)
 #   __UPLOADS_DIR__  this instance's STORAGE_LOCAL_PATH, e.g. /var/lib/alumni-portal-aated/uploads
+#   __INSTANCE__     the same instance name you gave setup-server.sh, e.g. aated — used only to
+#                    give this instance's rate-limit zone a unique name (see below)
 #
 # Note on "static files": this app's frontend (JS/CSS/index.html) is embedded *inside* the Go
 # binary (go:embed) — there's no loose dist/ folder on disk for nginx to serve directly, so
@@ -14,6 +16,16 @@
 # memory (no real disk I/O, so proxying it costs nothing meaningful). /files/ (uploaded
 # avatars/logos/etc., only relevant when STORAGE_DRIVER=local) genuinely IS real files on disk,
 # so nginx serves those directly — faster, and takes that load off the Go process entirely.
+#
+# Per-IP rate limit, applied to every reverse-proxied request (not /files/, which isn't proxied —
+# add a separate limit_req to that block too if you want static-file requests limited as well).
+# $binary_remote_addr keys the bucket by client IP, so each IP gets its own independent quota —
+# one IP hammering the app doesn't affect anyone else. limit_req_zone must live outside any
+# server{} block but in the same file is fine (sites-enabled/* files are spliced into nginx's
+# http{} context) — the zone name just needs to be unique across all instances' files, hence
+# __INSTANCE__ in the name.
+limit_req_zone $binary_remote_addr zone=perip___INSTANCE__:10m rate=10r/s;
+
 server {
     listen 80;
     server_name __DOMAIN__;
@@ -43,6 +55,13 @@ server {
 
     # Everything else (frontend, API, /share/*) — reverse-proxied to this instance's own port.
     location / {
+        # burst=20 nodelay: absorb short bursts (a page load firing several XHRs at once)
+        # without queuing/delaying them, only rejecting once a client is sustained well above
+        # the 10r/s base rate. 429 (not nginx's default 503) is the correct status for "you're
+        # being rate-limited", and is what a well-behaved client should treat as retry-later.
+        limit_req zone=perip___INSTANCE__ burst=20 nodelay;
+        limit_req_status 429;
+
         proxy_pass http://127.0.0.1:__PORT__;
         proxy_set_header Host $host;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;

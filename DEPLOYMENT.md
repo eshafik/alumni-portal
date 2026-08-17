@@ -122,10 +122,18 @@ Set up the nginx server block:
 cp deploy/nginx-instance.conf.template /etc/nginx/sites-available/alumni-portal-aated
 ```
 
-Fill in the three placeholders in that file:
+This template also includes a per-IP rate limit (10 requests/second, burst 20) applied to every
+reverse-proxied request — each client IP gets its own independent bucket, so one abusive IP
+never affects anyone else. Tune the `rate=`/`burst=` values in the template if 10r/s is too
+tight/loose for your traffic.
+
+Fill in the four placeholders in that file:
 - `__DOMAIN__` — e.g. `aated.example.edu`
 - `__PORT__` — the `PORT` from this instance's `.env`
 - `__UPLOADS_DIR__` — this instance's `STORAGE_LOCAL_PATH`, e.g. `/var/lib/alumni-portal-aated/uploads`
+- `__INSTANCE__` — the same instance name you gave `setup-server.sh` (e.g. `aated`) — only used to
+  keep this instance's per-IP rate-limit zone name unique from any other instance's on the same
+  server
 
 ```bash
 sudo ln -s /etc/nginx/sites-available/alumni-portal-aated /etc/nginx/sites-enabled/
