@@ -275,9 +275,9 @@ func (h *InstitutionHandler) ListBatches(w http.ResponseWriter, r *http.Request)
 		LEFT JOIN (SELECT batch_id, COUNT(*) AS cnt FROM student_profiles WHERE status = 'converted' GROUP BY batch_id) sp_conv ON sp_conv.batch_id = b.id`
 	var err error
 	if programID != "" {
-		err = h.DB.Select(&batches, baseQuery+` WHERE b.program_id = ? AND b.is_active = 1 ORDER BY b.start_year DESC`, programID)
+		err = h.DB.Select(&batches, baseQuery+` WHERE b.program_id = ? AND b.is_active = 1 ORDER BY b.sort_order ASC`, programID)
 	} else {
-		err = h.DB.Select(&batches, baseQuery+` WHERE b.is_active = 1 ORDER BY b.start_year DESC`)
+		err = h.DB.Select(&batches, baseQuery+` WHERE b.is_active = 1 ORDER BY b.sort_order ASC`)
 	}
 	if err != nil {
 		httpx.Error(w, http.StatusInternalServerError, "failed to list batches")

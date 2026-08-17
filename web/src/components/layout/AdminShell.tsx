@@ -1,5 +1,5 @@
 import { NavLink, Outlet } from 'react-router-dom'
-import { LayoutDashboard, Settings, ListTree, Megaphone, CalendarDays, Users2, UserCog, ScrollText } from 'lucide-react'
+import { LayoutDashboard, Settings, ListTree, Megaphone, CalendarDays, Users2, UserCog, ScrollText, Send } from 'lucide-react'
 import { useAuth } from '../../hooks/useAuth'
 import { ROLE } from '../../types/api'
 
@@ -11,6 +11,7 @@ const navItems = [
   { to: '/admin/events', label: 'Events', icon: CalendarDays, end: false, fullAdminOnly: true },
   { to: '/admin/committee', label: 'Committee', icon: Users2, end: false, fullAdminOnly: true },
   { to: '/admin/users', label: 'Manage Users', icon: UserCog, end: false, fullAdminOnly: true },
+  { to: '/admin/outreach', label: 'Outreach', icon: Send, end: false, fullAdminOnly: true },
   { to: '/admin/activity', label: 'Activity Log', icon: ScrollText, end: false, fullAdminOnly: true },
 ]
 

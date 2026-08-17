@@ -344,3 +344,37 @@ type EmailOutboxItem struct {
 	CreatedAt string  `db:"created_at" json:"createdAt"`
 	SentAt    *string `db:"sent_at" json:"sentAt,omitempty"`
 }
+
+type OutreachCampaign struct {
+	ID              int64   `db:"id" json:"id"`
+	Channel         string  `db:"channel" json:"channel"`
+	Subject         string  `db:"subject" json:"subject"`
+	Message         string  `db:"message" json:"message"`
+	TargetAlumni    bool    `db:"target_alumni" json:"targetAlumni"`
+	TargetStudents  bool    `db:"target_students" json:"targetStudents"`
+	FiltersJSON     string  `db:"filters_json" json:"filtersJson"`
+	SMSSegments     int     `db:"sms_segments" json:"smsSegments"`
+	RecipientCount  int     `db:"recipient_count" json:"recipientCount"`
+	EstimatedCost   float64 `db:"estimated_cost" json:"estimatedCost"`
+	Currency        string  `db:"currency" json:"currency"`
+	Status          string  `db:"status" json:"status"`
+	SuccessCount    int     `db:"success_count" json:"successCount"`
+	FailedCount     int     `db:"failed_count" json:"failedCount"`
+	CreatedByUserID *int64  `db:"created_by_user_id" json:"createdByUserId,omitempty"`
+	CreatedAt       string  `db:"created_at" json:"createdAt"`
+	CompletedAt     *string `db:"completed_at" json:"completedAt,omitempty"`
+}
+
+type OutreachRecipient struct {
+	ID             int64   `db:"id" json:"id"`
+	CampaignID     int64   `db:"campaign_id" json:"campaignId"`
+	UserID         *int64  `db:"user_id" json:"userId,omitempty"`
+	RecipientName  string  `db:"recipient_name" json:"recipientName"`
+	RecipientEmail string  `db:"recipient_email" json:"recipientEmail"`
+	RecipientPhone string  `db:"recipient_phone" json:"recipientPhone"`
+	Status         string  `db:"status" json:"status"`
+	StatusCode     string  `db:"status_code" json:"statusCode"`
+	ErrorMessage   string  `db:"error_message" json:"errorMessage"`
+	Attempts       int     `db:"attempts" json:"attempts"`
+	SentAt         *string `db:"sent_at" json:"sentAt,omitempty"`
+}

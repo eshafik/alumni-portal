@@ -51,3 +51,15 @@ export function waLink(number: string): string {
   const digits = number.replace(/\D/g, '')
   return `https://wa.me/${digits}`
 }
+
+// Currency is admin-configured (EMAIL_COST_CURRENCY/SMS_COST_CURRENCY env vars, e.g. "BDT"),
+// so this always renders the currency *code* rather than a locale-guessed symbol — a symbol
+// can be missing/ambiguous for less common currencies, a code is always unambiguous.
+export function formatCurrency(amount: number, currency: string): string {
+  if (!currency) return amount.toFixed(2)
+  try {
+    return new Intl.NumberFormat(undefined, { style: 'currency', currency, currencyDisplay: 'code' }).format(amount)
+  } catch {
+    return `${currency} ${amount.toFixed(2)}`
+  }
+}

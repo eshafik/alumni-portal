@@ -31,6 +31,23 @@ type Config struct {
 	SuperAdminEmail    string
 	SuperAdminPassword string
 	Timezone           string
+
+	OutreachEmailEnable bool
+	OutreachSMSEnable   bool
+	EmailCostPerUnit    float64
+	EmailCostCurrency   string
+	SMSCostPerUnit      float64
+	SMSCostCurrency     string
+
+	SMSDriver string // "twilio" | "bulksmsbd"
+
+	SMSAPIURL   string // bulksmsbd
+	SMSAPIKey   string
+	SMSSenderID string
+
+	TwilioAccountSID string
+	TwilioAuthToken  string
+	TwilioFromNumber string
 }
 
 func Load() Config {
@@ -67,6 +84,23 @@ func Load() Config {
 		SuperAdminEmail:    getEnv("SUPERADMIN_EMAIL", ""),
 		SuperAdminPassword: getEnv("SUPERADMIN_PASSWORD", ""),
 		Timezone:           getEnv("TIMEZONE", "Asia/Dhaka"),
+
+		OutreachEmailEnable: getEnvBool("OUTREACH_EMAIL_ENABLE", false),
+		OutreachSMSEnable:   getEnvBool("OUTREACH_SMS_ENABLE", false),
+		EmailCostPerUnit:    getEnvFloat("EMAIL_COST_PER_UNIT", 1),
+		EmailCostCurrency:   getEnv("EMAIL_COST_CURRENCY", "BDT"),
+		SMSCostPerUnit:      getEnvFloat("SMS_COST_PER_UNIT", 0.5),
+		SMSCostCurrency:     getEnv("SMS_COST_CURRENCY", "BDT"),
+
+		SMSDriver: getEnv("SMS_DRIVER", "twilio"),
+
+		SMSAPIURL:   getEnv("SMS_API_URL", "http://bulksmsbd.net/api/smsapi"),
+		SMSAPIKey:   getEnv("SMS_API_KEY", ""),
+		SMSSenderID: getEnv("SMS_SENDER_ID", ""),
+
+		TwilioAccountSID: getEnv("TWILIO_ACCOUNT_SID", ""),
+		TwilioAuthToken:  getEnv("TWILIO_AUTH_TOKEN", ""),
+		TwilioFromNumber: getEnv("TWILIO_FROM_NUMBER", ""),
 	}
 
 	// Visible-at-a-glance confirmation of what the mailer will actually do — the single most
@@ -93,6 +127,24 @@ func getEnvInt(key string, def int) int {
 	if v := os.Getenv(key); v != "" {
 		if i, err := strconv.Atoi(v); err == nil {
 			return i
+		}
+	}
+	return def
+}
+
+func getEnvFloat(key string, def float64) float64 {
+	if v := os.Getenv(key); v != "" {
+		if f, err := strconv.ParseFloat(v, 64); err == nil {
+			return f
+		}
+	}
+	return def
+}
+
+func getEnvBool(key string, def bool) bool {
+	if v := os.Getenv(key); v != "" {
+		if b, err := strconv.ParseBool(v); err == nil {
+			return b
 		}
 	}
 	return def

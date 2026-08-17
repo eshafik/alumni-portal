@@ -38,6 +38,8 @@ import AdminEvents from './routes/admin/AdminEvents'
 import AdminCommittee from './routes/admin/AdminCommittee'
 import AdminUsers from './routes/admin/AdminUsers'
 import AdminAuditLog from './routes/admin/AdminAuditLog'
+import AdminOutreach from './routes/admin/AdminOutreach'
+import AdminOutreachDetail from './routes/admin/AdminOutreachDetail'
 
 export default function App() {
   return (
@@ -86,6 +88,8 @@ export default function App() {
                     <Route path="admin/events" element={<AdminEvents />} />
                     <Route path="admin/committee" element={<AdminCommittee />} />
                     <Route path="admin/users" element={<AdminUsers />} />
+                    <Route path="admin/outreach" element={<AdminOutreach />} />
+                    <Route path="admin/outreach/:id" element={<AdminOutreachDetail />} />
                     <Route path="admin/activity" element={<AdminAuditLog />} />
                   </Route>
                 </Route>

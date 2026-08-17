@@ -174,11 +174,12 @@ export function Reveal({
   )
 }
 
-export function Badge({ children, tone = 'default' }: { children: ReactNode; tone?: 'default' | 'urgent' | 'important' }) {
+export function Badge({ children, tone = 'default' }: { children: ReactNode; tone?: 'default' | 'urgent' | 'important' | 'success' }) {
   const tones = {
     default: 'bg-slate-100 text-slate-700',
     important: 'bg-amber-100 text-amber-800',
     urgent: 'bg-red-100 text-red-800',
+    success: 'bg-green-100 text-green-800',
   }
   return <span className={cn('inline-block rounded-full px-2 py-0.5 text-xs font-medium', tones[tone])}>{children}</span>
 }

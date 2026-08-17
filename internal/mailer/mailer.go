@@ -88,14 +88,21 @@ func (s *Sender) processBatch(db *sqlx.DB) {
 }
 
 func (s *Sender) send(to, subject, bodyHTML string) error {
-	addr := fmt.Sprintf("%s:%d", s.cfg.SMTPHost, s.cfg.SMTPPort)
+	return SendEmail(s.cfg, to, subject, bodyHTML)
+}
+
+// SendEmail sends one HTML email via SMTP using cfg's settings. Exported so other packages
+// (e.g. internal/outreach) can send email without duplicating the SMTP-dial logic below —
+// Sender.send is just a thin wrapper kept for backward compatibility with existing call sites.
+func SendEmail(cfg config.Config, to, subject, bodyHTML string) error {
+	addr := fmt.Sprintf("%s:%d", cfg.SMTPHost, cfg.SMTPPort)
 	var auth smtp.Auth
-	if s.cfg.SMTPUser != "" {
-		auth = smtp.PlainAuth("", s.cfg.SMTPUser, s.cfg.SMTPPass, s.cfg.SMTPHost)
+	if cfg.SMTPUser != "" {
+		auth = smtp.PlainAuth("", cfg.SMTPUser, cfg.SMTPPass, cfg.SMTPHost)
 	}
-	from := s.cfg.SMTPFrom
-	if s.cfg.SMTPFromName != "" {
-		from = fmt.Sprintf("%s <%s>", mime.QEncoding.Encode("UTF-8", s.cfg.SMTPFromName), s.cfg.SMTPFrom)
+	from := cfg.SMTPFrom
+	if cfg.SMTPFromName != "" {
+		from = fmt.Sprintf("%s <%s>", mime.QEncoding.Encode("UTF-8", cfg.SMTPFromName), cfg.SMTPFrom)
 	}
 	msg := fmt.Sprintf("From: %s\r\nTo: %s\r\nSubject: %s\r\nMIME-Version: 1.0\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n%s",
 		from, to, subject, bodyHTML)
@@ -105,10 +112,10 @@ func (s *Sender) send(to, subject, bodyHTML string) error {
 	// an initial plaintext handshake, which is correct for 587/25 but hangs/fails against 465).
 	// This is one of the most common real-world SMTP misconfigurations (many providers'
 	// dashboards list 465 first), so it's handled explicitly rather than left to silently fail.
-	if s.cfg.SMTPPort == 465 {
-		return sendImplicitTLS(addr, s.cfg.SMTPHost, auth, s.cfg.SMTPFrom, to, []byte(msg))
+	if cfg.SMTPPort == 465 {
+		return sendImplicitTLS(addr, cfg.SMTPHost, auth, cfg.SMTPFrom, to, []byte(msg))
 	}
-	return smtp.SendMail(addr, auth, s.cfg.SMTPFrom, []string{to}, []byte(msg))
+	return smtp.SendMail(addr, auth, cfg.SMTPFrom, []string{to}, []byte(msg))
 }
 
 func sendImplicitTLS(addr, host string, auth smtp.Auth, envelopeFrom, to string, msg []byte) error {

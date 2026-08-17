@@ -19,6 +19,7 @@ import (
 	"alumni-portal/internal/httpx"
 	"alumni-portal/internal/mailer"
 	"alumni-portal/internal/models"
+	"alumni-portal/internal/outreach"
 	"alumni-portal/internal/storage"
 	web "alumni-portal/web"
 )
@@ -64,6 +65,12 @@ func main() {
 	stopMailer := make(chan struct{})
 	go sender.Run(dbx, 5*time.Second, stopMailer)
 
+	// Isolated from the OTP mailer above — a problem sending a bulk outreach campaign must
+	// never affect login/signup OTP delivery.
+	outreachSender := outreach.NewSender(cfg)
+	stopOutreach := make(chan struct{})
+	go outreachSender.Run(dbx, 5*time.Second, stopOutreach)
+
 	secureCookies := cfg.AppEnv == "production"
 
 	authHandler := &handlers.AuthHandler{DB: dbx, Storage: store, Secure: secureCookies}
@@ -81,6 +88,7 @@ func main() {
 	businessHandler := &handlers.BusinessHandler{DB: dbx, Storage: store}
 	notificationHandler := &handlers.NotificationHandler{DB: dbx}
 	uploadHandler := &handlers.UploadHandler{DB: dbx, Storage: store}
+	outreachHandler := &handlers.OutreachHandler{DB: dbx, Cfg: cfg}
 
 	r := httpx.NewRouter()
 
@@ -205,6 +213,14 @@ func main() {
 		r.Get("/api/admin/events/{id}/registrations.csv", eventHandler.ExportRegistrationsCSV)
 
 		r.Get("/api/admin/audit-logs", adminHandler.ListAuditLogs)
+
+		r.Get("/api/admin/outreach/config", outreachHandler.GetConfig)
+		r.Get("/api/admin/outreach/search-recipients", outreachHandler.SearchRecipients)
+		r.Post("/api/admin/outreach/estimate", outreachHandler.EstimateCost)
+		r.Post("/api/admin/outreach/campaigns", outreachHandler.CreateCampaign)
+		r.Get("/api/admin/outreach/campaigns", outreachHandler.ListCampaigns)
+		r.Get("/api/admin/outreach/campaigns/{id}", outreachHandler.GetCampaign)
+		r.Get("/api/admin/outreach/campaigns/{id}/logs", outreachHandler.ListLogs)
 	})
 
 	r.Group(func(r chi.Router) {
@@ -272,5 +288,6 @@ func main() {
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 	close(stopMailer)
+	close(stopOutreach)
 	log.Println("shutting down")
 }
