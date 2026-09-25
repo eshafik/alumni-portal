@@ -1,5 +1,5 @@
 import { api } from './client'
-import type { Institution, Department, Program, Batch, BloodGroup, AlumniDirectoryRow, PagedResult } from '../types/api'
+import type { Institution, Department, Program, Batch, BloodGroup, AlumniDirectoryRow, PagedResult, CommitteeMemberInfo } from '../types/api'
 
 export const institutionApi = {
   get: () => api.get<{ institution: Institution; stats: Record<string, number>; timezone: string }>('/api/institution'),
@@ -37,4 +37,5 @@ export const alumniApi = {
   get: (userId: number) => api.get(`/api/alumni/${userId}`),
   getMe: () => api.get('/api/alumni/me'),
   updateMe: (payload: unknown) => api.put('/api/alumni/me', payload),
+  lifeMembers: () => api.get<CommitteeMemberInfo[]>('/api/life-members'),
 }

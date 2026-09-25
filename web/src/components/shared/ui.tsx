@@ -1,6 +1,7 @@
 import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode } from 'react'
 import { cn } from '../../lib/utils'
 import { useInView } from '../../hooks/useInView'
+import { Crown } from 'lucide-react'
 
 export function Button({ className, variant = 'primary', ...props }: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: 'primary' | 'secondary' | 'ghost' | 'danger' }) {
   const variants = {
@@ -109,13 +110,13 @@ function paletteFor(name: string) {
 }
 
 /** Photo if available, else a deterministic color + initials — never a blank gray circle. */
-export function Avatar({ name, url, size = 'md' }: { name: string; url?: string; size?: 'sm' | 'md' | 'lg' }) {
+export function Avatar({ name, url, size = 'md', className }: { name: string; url?: string; size?: 'sm' | 'md' | 'lg'; className?: string }) {
   const dims = { sm: 'w-9 h-9 text-xs', md: 'w-12 h-12 text-sm', lg: 'w-20 h-20 text-xl' }[size]
   if (url) {
-    return <img src={url} alt={name} className={cn('rounded-full object-cover shrink-0', dims)} />
+    return <img src={url} alt={name} className={cn('rounded-full object-cover shrink-0', dims, className)} />
   }
   return (
-    <div className={cn('rounded-full flex items-center justify-center font-semibold shrink-0', dims, paletteFor(name || '?'))}>
+    <div className={cn('rounded-full flex items-center justify-center font-semibold shrink-0', dims, paletteFor(name || '?'), className)}>
       {initialsOf(name) || '?'}
     </div>
   )
@@ -174,14 +175,27 @@ export function Reveal({
   )
 }
 
-export function Badge({ children, tone = 'default' }: { children: ReactNode; tone?: 'default' | 'urgent' | 'important' | 'success' }) {
+export function Badge({ children, tone = 'default' }: { children: ReactNode; tone?: 'default' | 'urgent' | 'important' | 'success' | 'premium' }) {
   const tones = {
     default: 'bg-slate-100 text-slate-700',
     important: 'bg-amber-100 text-amber-800',
     urgent: 'bg-red-100 text-red-800',
     success: 'bg-green-100 text-green-800',
+    premium: 'bg-gradient-to-r from-amber-100 to-yellow-50 text-amber-900 ring-1 ring-amber-300',
   }
-  return <span className={cn('inline-block rounded-full px-2 py-0.5 text-xs font-medium', tones[tone])}>{children}</span>
+  return <span className={cn('inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium', tones[tone])}>{children}</span>
+}
+
+/** Gold ring used on life members' avatars — shared so directory, detail and admin match. */
+export const LIFE_MEMBER_RING = 'ring-2 ring-amber-400 ring-offset-2 ring-offset-white'
+
+export function LifeMemberBadge({ no }: { no?: string }) {
+  return (
+    <Badge tone="premium">
+      <Crown size={12} className="text-amber-600 shrink-0" aria-hidden />
+      Life Member{no ? ` · #${no}` : ''}
+    </Badge>
+  )
 }
 
 export function Pagination({ page, total, pageSize, onChange }: { page: number; total: number; pageSize: number; onChange: (p: number) => void }) {

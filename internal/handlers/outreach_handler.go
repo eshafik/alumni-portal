@@ -40,6 +40,9 @@ type outreachFiltersRequest struct {
 	DepartmentID string `json:"departmentId"`
 	ProgramID    string `json:"programId"`
 	BloodGroupID string `json:"bloodGroupId"`
+	// LifeMembersOnly narrows whichever groups are targeted to life members — unlike the
+	// filters above it also applies when both groups are targeted.
+	LifeMembersOnly bool `json:"lifeMembersOnly"`
 }
 
 type outreachEstimateRequest struct {
@@ -82,6 +85,7 @@ func (h *OutreachHandler) EstimateCost(w http.ResponseWriter, r *http.Request) {
 	recipients, err := resolveAllRecipients(h.DB, req.TargetAlumni, req.TargetStudents, outreach.Filters{
 		BatchID: req.Filters.BatchID, DepartmentID: req.Filters.DepartmentID,
 		ProgramID: req.Filters.ProgramID, BloodGroupID: req.Filters.BloodGroupID,
+		LifeMembersOnly: req.Filters.LifeMembersOnly,
 	}, req.ExtraUserIDs)
 	if err != nil {
 		httpx.Error(w, http.StatusInternalServerError, "failed to resolve recipients")
@@ -154,6 +158,7 @@ func (h *OutreachHandler) CreateCampaign(w http.ResponseWriter, r *http.Request)
 	recipients, err := resolveAllRecipients(h.DB, req.TargetAlumni, req.TargetStudents, outreach.Filters{
 		BatchID: req.Filters.BatchID, DepartmentID: req.Filters.DepartmentID,
 		ProgramID: req.Filters.ProgramID, BloodGroupID: req.Filters.BloodGroupID,
+		LifeMembersOnly: req.Filters.LifeMembersOnly,
 	}, req.ExtraUserIDs)
 	if err != nil {
 		httpx.Error(w, http.StatusInternalServerError, "failed to resolve recipients")
@@ -231,6 +236,9 @@ func filtersToJSON(f outreachFiltersRequest) string {
 	add("departmentId", f.DepartmentID)
 	add("programId", f.ProgramID)
 	add("bloodGroupId", f.BloodGroupID)
+	if f.LifeMembersOnly {
+		parts = append(parts, `"lifeMembersOnly":true`)
+	}
 	return "{" + strings.Join(parts, ",") + "}"
 }
 

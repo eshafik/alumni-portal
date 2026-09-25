@@ -33,6 +33,7 @@ type alumniDirectoryRow struct {
 	CurrentLocation    *string `db:"current_location_out" json:"currentLocation,omitempty"`
 	CompanyName        *string `db:"company_name_out" json:"companyName,omitempty"`
 	BloodGroupName     string  `db:"blood_group_name" json:"bloodGroupName"`
+	LifeMemberNo       *string `db:"life_member_no" json:"lifeMemberNo,omitempty"`
 }
 
 // List implements the alumni directory search: FTS5 full-text query plus structured filters,
@@ -112,7 +113,8 @@ func (h *AlumniHandler) List(w http.ResponseWriter, r *http.Request) {
 		ap.current_designation,
 		CASE WHEN ap.privacy_location = 1 THEN ap.current_location ELSE NULL END AS current_location_out,
 		CASE WHEN ap.privacy_company = 1 THEN c.name ELSE NULL END AS company_name_out,
-		COALESCE(bg.name, '') AS blood_group_name
+		COALESCE(bg.name, '') AS blood_group_name,
+		(SELECT lm.member_no FROM life_members lm WHERE lm.user_id = u.id) AS life_member_no
 		` + baseFrom + " " + whereSQL + " ORDER BY b.sort_order ASC, u.id ASC LIMIT ? OFFSET ?"
 	pagedArgs := append(append([]any{}, args...), pg.PageSize, pg.Offset)
 
@@ -167,6 +169,7 @@ type alumniProfileDetail struct {
 	SkillNames         string  `db:"skill_names" json:"skillNames,omitempty"`
 	PassingYear        *int64  `db:"passing_year" json:"passingYear,omitempty"`
 	StudentID          string  `db:"student_id" json:"studentId,omitempty"`
+	LifeMemberNo       *string `db:"life_member_no" json:"lifeMemberNo,omitempty"`
 }
 
 func (h *AlumniHandler) Get(w http.ResponseWriter, r *http.Request) {
@@ -187,7 +190,8 @@ func (h *AlumniHandler) Get(w http.ResponseWriter, r *http.Request) {
 		CASE WHEN ap.privacy_whatsapp = 1 THEN ap.whatsapp_number ELSE NULL END AS whatsapp_out,
 		CASE WHEN ap.privacy_location = 1 THEN ap.current_location ELSE NULL END AS current_location_out,
 		COALESCE((SELECT GROUP_CONCAT(DISTINCT s.name) FROM alumni_skills ask
-			JOIN skills s ON s.id = ask.skill_id WHERE ask.alumni_profile_id = ap.id), '') AS skill_names
+			JOIN skills s ON s.id = ask.skill_id WHERE ask.alumni_profile_id = ap.id), '') AS skill_names,
+		(SELECT lm.member_no FROM life_members lm WHERE lm.user_id = u.id) AS life_member_no
 		FROM alumni_profiles ap
 		JOIN users u ON u.id = ap.user_id
 		JOIN batches b ON b.id = ap.batch_id
@@ -205,6 +209,28 @@ func (h *AlumniHandler) Get(w http.ResponseWriter, r *http.Request) {
 	}
 	p.AvatarURL = attachmentURL(h.DB, h.Storage, p.AvatarAttachmentID)
 	httpx.JSON(w, http.StatusOK, p)
+}
+
+// LifeMembers is the public Life Members page feed. Like committee memberInfo, it is
+// deliberately name + photo only — never add the number or other profile fields here.
+// ponytail: unpaginated, add pagination if the list grows past a few hundred.
+func (h *AlumniHandler) LifeMembers(w http.ResponseWriter, r *http.Request) {
+	members := []memberInfo{}
+	if err := h.DB.Select(&members, `SELECT u.id AS user_id, u.full_name,
+		COALESCE(ap.avatar_attachment_id, sp.avatar_attachment_id, u.avatar_attachment_id) AS avatar_attachment_id
+		FROM life_members lm
+		JOIN users u ON u.id = lm.user_id
+		LEFT JOIN alumni_profiles ap ON ap.user_id = u.id
+		LEFT JOIN student_profiles sp ON sp.user_id = u.id
+		WHERE u.status = 'approved'
+		ORDER BY u.full_name COLLATE NOCASE`); err != nil {
+		httpx.Error(w, http.StatusInternalServerError, "list failed")
+		return
+	}
+	for i := range members {
+		members[i].AvatarURL = attachmentURL(h.DB, h.Storage, members[i].AvatarAttachmentID)
+	}
+	httpx.JSON(w, http.StatusOK, members)
 }
 
 type alumniMeResponse struct {

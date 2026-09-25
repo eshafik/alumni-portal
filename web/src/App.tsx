@@ -24,6 +24,7 @@ import JobDetail from './routes/public/JobDetail'
 import BusinessesList from './routes/public/BusinessesList'
 import BusinessDetail from './routes/public/BusinessDetail'
 import CommitteePage from './routes/public/CommitteePage'
+import LifeMembersPage from './routes/public/LifeMembersPage'
 import { Privacy, Terms, NotFound } from './routes/public/Static'
 import PendingApproval from './routes/protected/PendingApproval'
 import Profile from './routes/protected/Profile'
@@ -66,6 +67,7 @@ export default function App() {
               <Route path="businesses" element={<BusinessesList />} />
               <Route path="businesses/:id" element={<BusinessDetail />} />
               <Route path="committee" element={<CommitteePage />} />
+              <Route path="life-members" element={<LifeMembersPage />} />
               <Route path="privacy" element={<Privacy />} />
               <Route path="terms" element={<Terms />} />
               <Route path="pending-approval" element={<PendingApproval />} />

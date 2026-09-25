@@ -130,6 +130,7 @@ func main() {
 	r.Get("/api/businesses/{id}", businessHandler.Get)
 	r.Get("/api/committees", committeeHandler.List)
 	r.Get("/api/committees/current", committeeHandler.Current)
+	r.Get("/api/life-members", alumniHandler.LifeMembers)
 	r.Get("/api/committees/{id}", committeeHandler.Get)
 	r.Get("/api/home-gallery", galleryHandler.List)
 
@@ -195,6 +196,7 @@ func main() {
 		r.Get("/api/admin/users", adminHandler.ListUsers)
 		r.Put("/api/admin/users/{id}/role", adminHandler.UpdateUserRole)
 		r.Put("/api/admin/users/{id}/status", adminHandler.UpdateUserStatus)
+		r.Put("/api/admin/users/{id}/life-member", adminHandler.UpdateLifeMember)
 
 		r.Post("/api/admin/committees", committeeHandler.CreateCommittee)
 		r.Post("/api/admin/committees/{id}/positions", committeeHandler.CreatePosition)

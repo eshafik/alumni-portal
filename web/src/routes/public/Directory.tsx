@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react'
 import { Search, Loader2 } from 'lucide-react'
 import { alumniApi, configApi } from '../../api/directory'
 import type { Department, Batch, BloodGroup } from '../../types/api'
-import { Card, Input, Select, Avatar, EmptyState, CardGridSkeleton } from '../../components/shared/ui'
+import { Card, Input, Select, Avatar, EmptyState, CardGridSkeleton, LIFE_MEMBER_RING, LifeMemberBadge } from '../../components/shared/ui'
+import { cn } from '../../lib/utils'
 import { FlipModal } from '../../components/shared/FlipModal'
 import { AlumniDetailCard } from '../../components/shared/AlumniDetailCard'
 import { useDebounce } from '../../hooks/useDebounce'
@@ -79,12 +80,26 @@ export default function Directory() {
         <>
           <div className={`grid sm:grid-cols-2 lg:grid-cols-3 gap-4 transition-opacity ${loading ? 'opacity-50 pointer-events-none' : ''}`}>
             {rows.map((r) => (
-              <button key={r.userId} onClick={() => setSelectedId(r.userId)} className="text-left">
-                <Card className="hover:shadow-md hover:border-slate-300 transition-all">
+              <button key={r.userId} onClick={() => setSelectedId(r.userId)} className="text-left h-full">
+                <Card
+                  className={cn(
+                    'h-full hover:shadow-md hover:border-slate-300 transition-all',
+                    r.lifeMemberNo &&
+                      'relative overflow-hidden border-amber-300 bg-gradient-to-br from-amber-50/80 via-white to-white hover:border-amber-400 hover:shadow-amber-100',
+                  )}
+                >
+                  {r.lifeMemberNo && (
+                    <span aria-hidden className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-amber-400 via-yellow-300 to-amber-400" />
+                  )}
                   <div className="flex items-center gap-3">
-                    <Avatar name={r.fullName} url={r.avatarUrl} />
+                    <Avatar name={r.fullName} url={r.avatarUrl} className={r.lifeMemberNo ? LIFE_MEMBER_RING : undefined} />
                     <div className="min-w-0">
                       <p className="font-medium text-slate-900 truncate">{r.fullName}</p>
+                      {r.lifeMemberNo && (
+                        <div className="my-0.5">
+                          <LifeMemberBadge no={r.lifeMemberNo} />
+                        </div>
+                      )}
                       <p className="text-xs text-slate-500 truncate">
                         {r.currentDesignation}
                         {r.companyName ? ` at ${r.companyName}` : ''}

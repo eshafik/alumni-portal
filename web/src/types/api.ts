@@ -34,6 +34,7 @@ export interface User {
   privacyCompany?: boolean
   studentId?: string
   passingYear?: number
+  lifeMemberNo?: string
 }
 
 export const ROLE = {
@@ -116,6 +117,7 @@ export interface AlumniDirectoryRow {
   currentLocation?: string
   companyName?: string
   bloodGroupName: string
+  lifeMemberNo?: string
 }
 
 export interface StudentDirectoryRow {

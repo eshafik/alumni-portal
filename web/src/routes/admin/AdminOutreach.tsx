@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Send, Mail, MessageSquare, Lock, Users, GraduationCap, Search, X, UserPlus } from 'lucide-react'
+import { Send, Mail, MessageSquare, Lock, Users, GraduationCap, Search, X, UserPlus, Crown } from 'lucide-react'
 import { outreachApi, type OutreachConfig, type OutreachEstimate, type OutreachCampaign, type OutreachUserSearchResult } from '../../api/outreach'
 import { configApi } from '../../api/directory'
 import { ApiError } from '../../api/client'
@@ -27,6 +27,7 @@ export default function AdminOutreach() {
   const [channel, setChannel] = useState<Channel>('email')
   const [targetAlumni, setTargetAlumni] = useState(true)
   const [targetStudents, setTargetStudents] = useState(false)
+  const [lifeMembersOnly, setLifeMembersOnly] = useState(false)
   const [departmentId, setDepartmentId] = useState('')
   const [programId, setProgramId] = useState('')
   const [batchId, setBatchId] = useState('')
@@ -141,7 +142,13 @@ export default function AdminOutreach() {
   }
   useEffect(reloadCampaigns, [campaignsPage])
 
-  const filters = showFilters ? { departmentId, programId, batchId, bloodGroupId } : {}
+  // Life-members-only narrows whichever groups are ticked, including both at once — unlike the
+  // other filters, which only apply when exactly one group is selected.
+  const lifeFilterActive = lifeMembersOnly && (targetAlumni || targetStudents) && !specificMode
+  const filters = {
+    ...(showFilters ? { departmentId, programId, batchId, bloodGroupId } : {}),
+    ...(lifeFilterActive ? { lifeMembersOnly: true } : {}),
+  }
   const extraUserIds = extraRecipients.map((p) => p.userId)
   const debouncedKey = useDebounce(JSON.stringify({ channel, targetAlumni, targetStudents, filters, message, extraUserIds }), 400)
 
@@ -258,6 +265,17 @@ export default function AdminOutreach() {
             <GraduationCap size={15} className="text-slate-400" /> Students
           </label>
         </div>
+        {(targetAlumni || targetStudents) && !specificMode && (
+          <label
+            className={cn(
+              '-mt-2 mb-5 flex items-center gap-2.5 rounded-md border px-3 py-2.5 text-sm cursor-pointer',
+              lifeMembersOnly ? 'border-amber-300 bg-amber-50/70' : 'border-slate-300',
+            )}
+          >
+            <input type="checkbox" checked={lifeMembersOnly} onChange={(e) => setLifeMembersOnly(e.target.checked)} />
+            <Crown size={15} className={lifeMembersOnly ? 'text-amber-500' : 'text-slate-400'} /> Life members only
+          </label>
+        )}
         {specificMode && (
           <p className="text-xs text-slate-400 mb-5">
             Targeting {extraRecipients.length} specific {extraRecipients.length === 1 ? 'person' : 'people'} only — clear the list below to target a group instead.

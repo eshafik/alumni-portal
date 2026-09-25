@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Copy, Check } from 'lucide-react'
 import { api } from '../../api/client'
-import { Avatar, Badge, Card, Loading } from './ui'
+import { Avatar, Badge, Card, LIFE_MEMBER_RING, LifeMemberBadge, Loading } from './ui'
 import { normalizeExternalUrl, waLink } from '../../lib/utils'
 
 function CopyableValue({ value }: { value: string }) {
@@ -48,6 +48,7 @@ interface ProfileDetail {
   skillNames?: string
   passingYear?: number
   studentId?: string
+  lifeMemberNo?: string
 }
 
 export function AlumniDetailCard({ userId }: { userId: number | string }) {
@@ -74,9 +75,14 @@ export function AlumniDetailCard({ userId }: { userId: number | string }) {
   return (
     <Card>
       <div className="flex items-center gap-4">
-        <Avatar name={profile.fullName} url={profile.avatarUrl} size="lg" />
-        <div>
+        <Avatar name={profile.fullName} url={profile.avatarUrl} size="lg" className={profile.lifeMemberNo ? LIFE_MEMBER_RING : undefined} />
+        <div className="min-w-0">
           <h1 className="text-xl font-semibold">{profile.fullName}</h1>
+          {profile.lifeMemberNo && (
+            <div className="mt-1">
+              <LifeMemberBadge no={profile.lifeMemberNo} />
+            </div>
+          )}
           <p className="text-slate-500 text-sm">
             {[
               profile.currentDesignation && profile.companyName

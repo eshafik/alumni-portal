@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import { Calendar, Users, GraduationCap, Bell, Store, ShieldCheck, LogOut, LogIn, UserPlus, FileText, ChevronRight } from 'lucide-react'
+import { Calendar, Users, GraduationCap, Bell, Store, ShieldCheck, LogOut, LogIn, UserPlus, FileText, ChevronRight, Crown } from 'lucide-react'
 import { useAuth } from '../../hooks/useAuth'
 import { ROLE } from '../../types/api'
 import { Avatar } from '../shared/ui'
@@ -27,7 +27,7 @@ export function MoreSheet({ open, onClose }: MoreSheetProps) {
   // The tab bar always shows Jobs as tab 3, and either Directory/Alumni (members) or Events
   // (everyone else) as tab 2 — so this list is exactly "everything else" for each case, in the
   // same relative order as the desktop nav: Alumni, Jobs, Notices, Events, Business Directory,
-  // Students, Committee.
+  // Students, Committee, Life Members.
   const browseRows: Row[] = isApprovedMember
     ? [
         { to: '/notices', label: 'Notices', icon: Bell },
@@ -35,10 +35,12 @@ export function MoreSheet({ open, onClose }: MoreSheetProps) {
         { to: '/businesses', label: 'Business Directory', icon: Store },
         { to: '/students', label: 'Students', icon: GraduationCap },
         { to: '/committee', label: 'Committee', icon: Users },
+        { to: '/life-members', label: 'Life Members', icon: Crown },
       ]
     : [
         { to: '/notices', label: 'Notices', icon: Bell },
         { to: '/committee', label: 'Committee', icon: Users },
+        { to: '/life-members', label: 'Life Members', icon: Crown },
       ]
 
   const handleNavigate = () => onClose()

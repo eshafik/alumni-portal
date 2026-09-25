@@ -15,6 +15,7 @@ export interface OutreachFilters {
   departmentId?: string
   programId?: string
   bloodGroupId?: string
+  lifeMembersOnly?: boolean
 }
 
 export interface OutreachEstimate {

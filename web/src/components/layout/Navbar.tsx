@@ -9,7 +9,7 @@ import { Avatar, Button } from '../shared/ui'
 // Public/anonymous visitors see only institutional content links; Alumni/Jobs/Business
 // Directory/Students are member-only features (gated behind approved membership on the backend
 // too) and only appear once logged in as an approved member. Order matches the requested nav
-// order: Alumni, Jobs, Notices, Events, Business Directory, Students, Committee, (Admin below).
+// order: Alumni, Jobs, Notices, Events, Business Directory, Students, Committee, Life Members, (Admin below).
 const navLinks = [
   { to: '/directory', label: 'Alumni', memberOnly: true },
   { to: '/jobs', label: 'Jobs', memberOnly: true },
@@ -18,6 +18,7 @@ const navLinks = [
   { to: '/businesses', label: 'Business Directory', memberOnly: true },
   { to: '/students', label: 'Students', memberOnly: true },
   { to: '/committee', label: 'Committee', memberOnly: false },
+  { to: '/life-members', label: 'Life Members', memberOnly: false },
 ]
 
 export function Navbar() {
@@ -36,14 +37,16 @@ export function Navbar() {
       {/* Desktop navbar — unchanged from before the mobile app-shell work. */}
       <header className="hidden md:block sticky top-0 z-40 border-b border-slate-200 bg-white/95 backdrop-blur">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
-          <Link to="/" className="flex items-center gap-2 font-semibold text-brand text-lg">
+          {/* md–lg (tablets) is tight with the full member nav — the logo text and user name hide
+              there and link spacing tightens, so nothing wraps or overlaps. */}
+          <Link to="/" className="flex items-center gap-2 font-semibold text-brand text-lg shrink-0">
             {institution?.logoUrl ? (
               <img src={institution.logoUrl} alt={institution.name} className="h-8 w-8 rounded object-contain" />
             ) : null}
-            {institution?.shortName || institution?.name || 'Alumni Portal'}
+            <span className={institution?.logoUrl ? 'hidden lg:inline' : undefined}>{institution?.shortName || institution?.name || 'Alumni Portal'}</span>
           </Link>
 
-          <nav className="flex items-center gap-5 text-sm">
+          <nav className="flex items-center gap-3 lg:gap-5 text-[13px] lg:text-sm whitespace-nowrap">
             {links.map((l) => (
               <NavLink key={l.to} to={l.to} className={({ isActive }) => (isActive ? 'text-brand font-medium' : 'text-slate-600 hover:text-slate-900')}>
                 {l.label}
@@ -56,12 +59,12 @@ export function Navbar() {
             )}
           </nav>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 shrink-0">
             {user ? (
               <>
                 <Link to="/profile" className="flex items-center gap-2 text-sm text-slate-600 hover:text-slate-900 pl-1 pr-2 py-1 rounded-full hover:bg-slate-50">
                   <Avatar name={user.fullName} url={user.avatarUrl} size="sm" />
-                  <span className="max-w-[140px] truncate">{user.fullName}</span>
+                  <span className="hidden lg:inline max-w-[140px] truncate">{user.fullName}</span>
                 </Link>
                 <Button variant="secondary" onClick={logout}>
                   Log out

@@ -16,6 +16,8 @@ type Filters struct {
 	DepartmentID string
 	ProgramID    string
 	BloodGroupID string
+	// LifeMembersOnly applies regardless of how many groups are targeted.
+	LifeMembersOnly bool
 }
 
 type Recipient struct {
@@ -30,6 +32,8 @@ type Recipient struct {
 // admin always exactly matches what gets sent. Per product decision, privacy_email/privacy_phone
 // are ignored here: those flags only govern peer-directory visibility, not the institution's own
 // outreach channel.
+const lifeMemberCond = "u.id IN (SELECT user_id FROM life_members)"
+
 func ResolveRecipients(db *sqlx.DB, targetAlumni, targetStudents bool, f Filters) ([]Recipient, error) {
 	// Sub-filtering only applies when exactly one group is targeted (see AdminOutreach.tsx) —
 	// when both are targeted, filters are ignored so "both" always means "everyone".
@@ -40,6 +44,9 @@ func ResolveRecipients(db *sqlx.DB, targetAlumni, targetStudents bool, f Filters
 
 	if targetAlumni {
 		where := []string{"u.status = 'approved'"}
+		if f.LifeMembersOnly {
+			where = append(where, lifeMemberCond)
+		}
 		var alumniArgs []any
 		if applyFilters {
 			if f.BatchID != "" {
@@ -70,6 +77,9 @@ func ResolveRecipients(db *sqlx.DB, targetAlumni, targetStudents bool, f Filters
 
 	if targetStudents {
 		where := []string{"u.status = 'approved'", "sp.status = 'active'"}
+		if f.LifeMembersOnly {
+			where = append(where, lifeMemberCond)
+		}
 		var studentArgs []any
 		if applyFilters {
 			if f.BatchID != "" {

@@ -27,7 +27,8 @@ type AdminHandler struct {
 
 type adminUserRow struct {
 	models.User
-	AvatarURL string `db:"-" json:"avatarUrl,omitempty"`
+	LifeMemberNo *string `db:"life_member_no" json:"lifeMemberNo,omitempty"`
+	AvatarURL    string  `db:"-" json:"avatarUrl,omitempty"`
 }
 
 // ListUsers resolves each account's avatar from wherever it actually lives — alumni_profiles/
@@ -68,10 +69,11 @@ func (h *AdminHandler) ListUsers(w http.ResponseWriter, r *http.Request) {
 		u.bio, u.current_location, u.blood_group_id, u.current_designation,
 		u.privacy_email, u.privacy_phone, u.privacy_location, u.current_company_name,
 		u.linkedin_url, u.whatsapp_number, u.website_url, u.privacy_whatsapp, u.privacy_company,
-		u.student_id, u.passing_year
+		u.student_id, u.passing_year, lm.member_no AS life_member_no
 		FROM users u
 		LEFT JOIN alumni_profiles ap ON ap.user_id = u.id
 		LEFT JOIN student_profiles sp ON sp.user_id = u.id
+		LEFT JOIN life_members lm ON lm.user_id = u.id
 		` + where + ` ORDER BY u.created_at DESC LIMIT ? OFFSET ?`
 	args = append(args, pg.PageSize, pg.Offset)
 	if err := h.DB.Select(&users, q, args...); err != nil {
@@ -177,6 +179,63 @@ func (h *AdminHandler) UpdateUserStatus(w http.ResponseWriter, r *http.Request) 
 	}
 	audit.Log(h.DB, actor.InstitutionID, &actor.ID, "user.status_changed", "user", &targetID, before, req)
 	httpx.JSON(w, http.StatusOK, map[string]string{"message": "status updated"})
+}
+
+type updateLifeMemberRequest struct {
+	LifeMemberNo string `json:"lifeMemberNo"`
+}
+
+// UpdateLifeMember sets or clears a user's life member number — an empty number means "not a
+// life member" and deletes the row, so life_members only ever holds real members.
+func (h *AdminHandler) UpdateLifeMember(w http.ResponseWriter, r *http.Request) {
+	actor := auth.CurrentUser(r)
+	targetID, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	if err != nil {
+		httpx.Error(w, http.StatusBadRequest, "invalid id")
+		return
+	}
+	var req updateLifeMemberRequest
+	if err := httpx.DecodeJSON(r, &req); err != nil {
+		httpx.Error(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	no := strings.TrimSpace(req.LifeMemberNo)
+	if len(no) > 32 {
+		httpx.Error(w, http.StatusBadRequest, "Life member number must be at most 32 characters")
+		return
+	}
+
+	var exists int
+	if err := h.DB.Get(&exists, `SELECT COUNT(*) FROM users WHERE id = ?`, targetID); err != nil || exists == 0 {
+		httpx.Error(w, http.StatusNotFound, "user not found")
+		return
+	}
+	var before sql.NullString
+	_ = h.DB.Get(&before, `SELECT member_no FROM life_members WHERE user_id = ?`, targetID)
+
+	if no == "" {
+		if _, err := h.DB.Exec(`DELETE FROM life_members WHERE user_id = ?`, targetID); err != nil {
+			httpx.Error(w, http.StatusInternalServerError, "update failed")
+			return
+		}
+	} else {
+		var holder string
+		err := h.DB.Get(&holder, `SELECT u.full_name FROM life_members lm JOIN users u ON u.id = lm.user_id
+			WHERE lm.member_no = ? AND lm.user_id <> ?`, no, targetID)
+		if err == nil {
+			httpx.Error(w, http.StatusConflict, "Life member number "+no+" is already assigned to "+holder)
+			return
+		}
+		if _, err := h.DB.Exec(`INSERT INTO life_members (user_id, member_no) VALUES (?, ?)
+			ON CONFLICT(user_id) DO UPDATE SET member_no = excluded.member_no, updated_at = datetime('now')`,
+			targetID, no); err != nil {
+			httpx.Error(w, http.StatusInternalServerError, "update failed")
+			return
+		}
+	}
+	audit.Log(h.DB, actor.InstitutionID, &actor.ID, "user.life_member_changed", "user", &targetID,
+		map[string]string{"lifeMemberNo": before.String}, map[string]string{"lifeMemberNo": no})
+	httpx.JSON(w, http.StatusOK, map[string]string{"message": "life membership updated"})
 }
 
 // --- Membership approval (Admin + Moderator, scoped) ---

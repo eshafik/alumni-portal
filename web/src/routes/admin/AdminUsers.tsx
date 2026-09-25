@@ -6,7 +6,7 @@ import { ApiError } from '../../api/client'
 import { useAuth } from '../../hooks/useAuth'
 import { ROLE } from '../../types/api'
 import type { User, Department, Batch } from '../../types/api'
-import { Avatar, Button, Card, Input, Select, Badge, Loading, Pagination } from '../../components/shared/ui'
+import { Avatar, Button, Card, Input, Select, Badge, Loading, Pagination, LIFE_MEMBER_RING, LifeMemberBadge } from '../../components/shared/ui'
 import { useDebounce } from '../../hooks/useDebounce'
 import { useConfirm } from '../../hooks/useConfirm'
 
@@ -51,6 +51,7 @@ export default function AdminUsers() {
   const [editRole, setEditRole] = useState('')
   const [editDept, setEditDept] = useState('')
   const [editBatch, setEditBatch] = useState('')
+  const [editLifeNo, setEditLifeNo] = useState('')
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
@@ -75,23 +76,40 @@ export default function AdminUsers() {
     setEditRole(String(u.roleId))
     setEditDept(u.moderatorScopeDepartmentId ? String(u.moderatorScopeDepartmentId) : '')
     setEditBatch(u.moderatorScopeBatchId ? String(u.moderatorScopeBatchId) : '')
+    setEditLifeNo(u.lifeMemberNo ?? '')
     setError('')
   }
 
-  const saveRole = async (u: User) => {
+  // Saves life membership (when changed) then role. Self-edits only ever touch life membership —
+  // role/scope controls are hidden for your own account.
+  const saveEdit = async (u: User) => {
     setError('')
+    const lifeNo = editLifeNo.trim()
+    const lifeChanged = lifeNo !== (u.lifeMemberNo ?? '')
+    if (lifeChanged && !lifeNo) {
+      const ok = await confirm({
+        title: 'Remove life membership?',
+        description: `${u.fullName} will no longer be listed as a life member (#${u.lifeMemberNo}).`,
+        confirmLabel: 'Remove',
+        danger: true,
+      })
+      if (!ok) return
+    }
     setSaving(true)
     try {
-      await adminApi.updateUserRole(
-        u.id,
-        Number(editRole),
-        editDept ? Number(editDept) : null,
-        editBatch ? Number(editBatch) : null,
-      )
+      if (lifeChanged) await adminApi.updateLifeMember(u.id, lifeNo)
+      if (u.id !== me?.id) {
+        await adminApi.updateUserRole(
+          u.id,
+          Number(editRole),
+          editDept ? Number(editDept) : null,
+          editBatch ? Number(editBatch) : null,
+        )
+      }
       setEditingId(null)
       reload()
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Could not update role')
+      setError(err instanceof ApiError ? err.message : 'Could not save changes')
     } finally {
       setSaving(false)
     }
@@ -121,7 +139,7 @@ export default function AdminUsers() {
     <div>
       <div className="mb-6">
         <h1 className="text-2xl font-semibold text-slate-900">Manage Users</h1>
-        <p className="text-sm text-slate-500 mt-1">Change roles, scope moderators to a department or batch, and suspend accounts.</p>
+        <p className="text-sm text-slate-500 mt-1">Change roles, scope moderators to a department or batch, assign life member numbers, and suspend accounts.</p>
       </div>
 
       <div className="flex flex-wrap gap-3 mb-4">
@@ -169,7 +187,7 @@ export default function AdminUsers() {
         </Select>
       </div>
 
-      {error && <p className="text-sm text-red-600 mb-3">{error}</p>}
+      {error && editingId === null && <p className="text-sm text-red-600 mb-3">{error}</p>}
 
       {loading ? (
         <Loading />
@@ -180,12 +198,13 @@ export default function AdminUsers() {
             <Card key={u.id} className="p-4">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="flex items-center gap-3 min-w-0">
-                  <Avatar name={u.fullName} url={u.avatarUrl} size="sm" />
+                  <Avatar name={u.fullName} url={u.avatarUrl} size="sm" className={u.lifeMemberNo ? LIFE_MEMBER_RING : undefined} />
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <p className="font-medium text-slate-900">{u.fullName}</p>
                       <Badge>{ROLE_LABELS[u.roleId] ?? u.roleId}</Badge>
                       <Badge tone={STATUS_TONE[u.status] ?? 'default'}>{u.status.replace('_', ' ')}</Badge>
+                      {u.lifeMemberNo && <LifeMemberBadge no={u.lifeMemberNo} />}
                       {u.roleId === ROLE.Moderator && (u.moderatorScopeDepartmentId || u.moderatorScopeBatchId) && (
                         <span className="text-xs text-slate-400">
                           scoped to{' '}
@@ -198,12 +217,17 @@ export default function AdminUsers() {
                     <p className="text-sm text-slate-500">{u.email}</p>
                   </div>
                 </div>
-                {u.id !== me?.id && (
-                  <div className="flex items-center gap-1 shrink-0">
-                    <button onClick={() => startEdit(u)} className="p-1.5 rounded-md text-slate-400 hover:text-brand hover:bg-blue-50" aria-label="Edit role">
-                      <Pencil size={15} />
-                    </button>
-                    {u.status === 'suspended' ? (
+                <div className="flex items-center gap-1 shrink-0">
+                  <button
+                    onClick={() => startEdit(u)}
+                    className="p-1.5 rounded-md text-slate-400 hover:text-brand hover:bg-blue-50"
+                    aria-label={u.id === me?.id ? 'Edit life membership' : 'Edit role and life membership'}
+                    title="Edit"
+                  >
+                    <Pencil size={15} />
+                  </button>
+                  {u.id !== me?.id &&
+                    (u.status === 'suspended' ? (
                       <button onClick={() => toggleSuspend(u)} className="p-1.5 rounded-md text-slate-400 hover:text-green-600 hover:bg-green-50" aria-label="Unsuspend" title="Unsuspend">
                         <ShieldCheck size={15} />
                       </button>
@@ -213,24 +237,38 @@ export default function AdminUsers() {
                           <ShieldBan size={15} />
                         </button>
                       )
-                    )}
-                  </div>
-                )}
+                    ))}
+                </div>
               </div>
 
               {editingId === u.id && (
                 <div className="mt-3 pt-3 border-t border-slate-100 flex flex-wrap items-end gap-2">
-                  <div>
-                    <span className="text-xs text-slate-500 block mb-1">Role</span>
-                    <Select value={editRole} onChange={(e) => setEditRole(e.target.value)} className="min-w-[140px]">
-                      {SELECTABLE_ROLES.map(([id, label]) => (
-                        <option key={id} value={id}>
-                          {label}
-                        </option>
-                      ))}
-                    </Select>
+                  <div className="w-full sm:w-auto">
+                    <label htmlFor={`life-no-${u.id}`} className="text-xs text-slate-500 block mb-1">
+                      Life member number
+                    </label>
+                    <Input
+                      id={`life-no-${u.id}`}
+                      value={editLifeNo}
+                      onChange={(e) => setEditLifeNo(e.target.value)}
+                      placeholder="Leave empty if not a life member"
+                      maxLength={32}
+                      className="sm:min-w-[240px]"
+                    />
                   </div>
-                  {Number(editRole) === ROLE.Moderator && (
+                  {u.id !== me?.id && (
+                    <div>
+                      <span className="text-xs text-slate-500 block mb-1">Role</span>
+                      <Select value={editRole} onChange={(e) => setEditRole(e.target.value)} className="min-w-[140px]">
+                        {SELECTABLE_ROLES.map(([id, label]) => (
+                          <option key={id} value={id}>
+                            {label}
+                          </option>
+                        ))}
+                      </Select>
+                    </div>
+                  )}
+                  {u.id !== me?.id && Number(editRole) === ROLE.Moderator && (
                     <>
                       <div>
                         <span className="text-xs text-slate-500 block mb-1">Department scope (optional)</span>
@@ -256,12 +294,13 @@ export default function AdminUsers() {
                       </div>
                     </>
                   )}
-                  <Button onClick={() => saveRole(u)} disabled={saving}>
+                  <Button onClick={() => saveEdit(u)} disabled={saving}>
                     <Check size={15} className="mr-1" /> Save
                   </Button>
                   <Button variant="secondary" onClick={() => setEditingId(null)}>
                     <X size={15} className="mr-1" /> Cancel
                   </Button>
+                  {error && <p className="w-full text-sm text-red-600">{error}</p>}
                 </div>
               )}
             </Card>
