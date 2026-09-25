@@ -163,6 +163,25 @@ If that ever prints "needs a chmod" (e.g. a stricter umask on this box), fix it 
 sudo chmod o+rx /var/lib/alumni-portal-aated /var/lib/alumni-portal-aated/uploads
 ```
 
+**Files copied in manually (migrations, bulk imports) are a common trap here.** `scp`/`rsync`
+from your own machine preserves your local user/group and often a restrictive mode, not the
+app's `755`/`644` convention — e.g. avatar images moved onto the server for
+`cmd/import-django-users` ending up owned by your local uid with no "other" read bit, or a
+`sudo mv` leaving directories owned by the service user but `750`/`700` with no group overlap
+with `www-data`. Symptom: the app's own `GET /files/...` route (served straight from Go, not
+nginx — see `cmd/server/main.go`) works fine over `curl localhost:<port>`, but going through
+nginx gives a 404, and `sudo tail /var/log/nginx/error.log` shows
+`stat() "..." failed (13: Permission denied)`. Fix by running:
+
+```bash
+sudo ./deploy/fix-uploads-permissions.sh aated
+```
+
+which detects nginx's worker user and the instance's service user, adds nginx's user to the
+service user's group, and normalizes ownership/perms (`750` dirs, `640` files) under
+`STORAGE_LOCAL_PATH` — safer than the `chmod o+rx` above since it doesn't open files to every
+local user on the box, only nginx.
+
 **If you change `STORAGE_LOCAL_PATH` later**: nginx doesn't read `.env` — its `/files/` `alias`
 is a literal path baked into the config file you already filled in. Update that line too and
 `sudo nginx -t && sudo systemctl reload nginx`, or nginx keeps serving from the old (now stale)
